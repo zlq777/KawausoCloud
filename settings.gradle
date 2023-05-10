@@ -1,0 +1,4 @@
+rootProject.name = 'KawausoCloud'
+include 'information-manage-server'
+include 'object-read-write-server'
+

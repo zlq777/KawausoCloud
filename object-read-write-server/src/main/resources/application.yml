@@ -1,0 +1,25 @@
+main:
+  exec-threads: 2
+
+network:
+  udp:
+    port: 3000
+    io-threads: 2
+  tcp:
+    host: 127.0.0.1
+    port: 4000
+    io-threads: 2
+
+raft:
+  timer:
+    tick-value: 50
+    send-interval: 200
+    min-elect-timeout: 400
+    max-elect-timeout: 800
+  send-window-size: 50
+  index: 0
+  all-node-address: 127.0.0.1:3000, 127.0.0.1:3001, 127.0.0.1:3002
+
+logging:
+  file:
+    name: history.log
