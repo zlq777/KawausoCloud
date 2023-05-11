@@ -9,7 +9,7 @@ version = '1.0'
 
 jar {
     manifest {
-        attributes 'Main-Class': 'cn.kawauso.InformationServerApplication'
+        attributes 'Main-Class': 'cn.kawauso.InformationManageServer'
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from {

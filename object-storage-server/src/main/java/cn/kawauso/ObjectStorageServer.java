@@ -30,19 +30,18 @@ import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_HEADER_S
 import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_INITIAL_LINE_LENGTH;
 
 /**
- * {@link ObjectServerApplication}是存储服务节点进程的启动入口
+ * {@link ObjectStorageServer}是对象存储服务节点进程的启动入口
  *
  * @author RealDragonking
  */
-
 @SpringBootApplication
-public class ObjectServerApplication {
+public class ObjectStorageServer {
 
-    private static final Logger log = LogManager.getLogger(ObjectServerApplication.class);
+    private static final Logger log = LogManager.getLogger(ObjectStorageServer.class);
 
     public static void main(String[] args) {
         ResourceLeakDetector.setLevel(Level.DISABLED);
-        SpringApplication.run(ObjectServerApplication.class, args);
+        SpringApplication.run(ObjectStorageServer.class, args);
     }
 
     /**

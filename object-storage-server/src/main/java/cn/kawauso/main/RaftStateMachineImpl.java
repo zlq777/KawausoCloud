@@ -704,6 +704,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
         } else {
             changeCurrentTerm(currentTerm + 1);
             changeVotedForIndex(index);
+
             clearPendingEntry();
 
             log.info("A new vote election has started ! term={}", currentTerm);
