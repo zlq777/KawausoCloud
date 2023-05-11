@@ -1,8 +1,8 @@
 package cn.kawauso;
 
-import cn.kawauso.main.DefaultRaftStateMachine;
-import cn.kawauso.main.RaftStateMachine;
+import cn.kawauso.consensus.RaftStateMachine;
 import cn.kawauso.network.*;
+import cn.kawauso.util.CommonUtils;
 import io.netty.channel.ChannelInboundHandler;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -52,7 +52,7 @@ public class ObjectStorageServer {
      */
     @Bean(destroyMethod = "shutdownGracefully")
     public EventExecutor initExecThreadGroup(@Value("${main.exec-threads}") int execThreads) {
-        ThreadFactory execThreadFactory = Utils.getThreadFactory("exec", true);
+        ThreadFactory execThreadFactory = CommonUtils.getThreadFactory("exec", true);
         return new UnorderedThreadPoolEventExecutor(execThreads, execThreadFactory);
     }
 

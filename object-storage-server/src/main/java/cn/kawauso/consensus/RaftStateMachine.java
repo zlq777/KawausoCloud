@@ -1,5 +1,6 @@
-package cn.kawauso.main;
+package cn.kawauso.consensus;
 
+import cn.kawauso.util.WriteFuture;
 import io.netty.buffer.ByteBuf;
 
 /**
@@ -83,39 +84,17 @@ public interface RaftStateMachine {
      *
      * @param entryIndex 可以应用的Entry序列号
      * @param entryData {@link ByteBuf}，可以应用的Entry数据
-     * @param writeFuture {@link WriteFuture}，仅在Leader节点状态下不为null
+     * @param future {@link WriteFuture}，仅在Leader节点状态下不为null
      */
-    void applyEntryData(long entryIndex, ByteBuf entryData, WriteFuture writeFuture);
+    void applyEntryData(long entryIndex, ByteBuf entryData, WriteFuture<?> future);
 
     /**
      * 将{@link ByteBuf}字节缓冲区中的数据写入整个集群，写入结果会通过异步方式进行通知
      *
      * @param byteBuf {@link ByteBuf}字节缓冲区，并不会修改读指针的位置和引用计数
-     * @param future {@link WriteFuture}，用于接收并处理异步回调通知
      *
      * @return 数据是否能够被写入
      */
-    boolean writeToCluster(ByteBuf byteBuf, WriteFuture future);
-
-    /**
-     * {@link WriteFuture}为写入结果的异步回调提供了支持，我们可以对其进行具体实现，并通过
-     * {@link RaftStateMachine#writeToCluster(ByteBuf, WriteFuture)}接口方法提交给状态机内核等待队列，等待
-     * 集群多数节点写入后，被调度执行
-     *
-     * @author RealDragonking
-     */
-    interface WriteFuture {
-
-        /**
-         * 当写入成功后执行
-         */
-        void onSuccess();
-
-        /**
-         * 当写入操作取消后执行，这通常发生在当前节点的leader位置被抢断情况下
-         */
-        void onCancelled();
-
-    }
+    <T> WriteFuture<T> writeToCluster(ByteBuf byteBuf);
 
 }

@@ -1,4 +1,4 @@
-package cn.kawauso.main;
+package cn.kawauso.consensus;
 
 /**
  * {@link RaftMessageType}是一个常量类，提供了{@link RaftStateMachine}需要处理的消息类型int字段

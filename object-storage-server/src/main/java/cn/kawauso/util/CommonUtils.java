@@ -1,17 +1,17 @@
-package cn.kawauso;
+package cn.kawauso.util;
 
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.ThreadFactory;
 
 /**
- * {@link Utils}是一个方法类，提供了一些全局通用的方法
+ * {@link CommonUtils}是一个方法类，提供了一些全局通用的方法
  *
  * @author RealDragonking
  */
-public final class Utils {
+public final class CommonUtils {
 
-    private Utils() {}
+    private CommonUtils() {}
 
     /**
      * 提供一个自带计数功能的{@link ThreadFactory}

@@ -1,12 +1,12 @@
 package cn.kawauso.network;
 
-import cn.kawauso.main.RaftStateMachine;
+import cn.kawauso.consensus.RaftStateMachine;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.channel.socket.DatagramPacket;
 import org.jetbrains.annotations.NotNull;
 
-import static cn.kawauso.main.RaftMessageType.*;
+import static cn.kawauso.consensus.RaftMessageType.*;
 
 /**
  * <p>{@link UDPMessageHandler}作为{@link ChannelInboundHandlerAdapter}的子类，能够被添加进

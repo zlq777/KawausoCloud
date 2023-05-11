@@ -11,7 +11,7 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 
 import java.util.concurrent.ThreadFactory;
 
-import static cn.kawauso.Utils.*;
+import static cn.kawauso.util.CommonUtils.*;
 
 /**
  * {@link GeneralUDPService}是{@link UDPService}的通用级实现，允许运行在所有操作系统环境中。然而唯一不足的是，

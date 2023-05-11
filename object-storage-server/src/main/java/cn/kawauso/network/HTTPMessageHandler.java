@@ -1,6 +1,6 @@
 package cn.kawauso.network;
 
-import cn.kawauso.main.RaftStateMachine;
+import cn.kawauso.consensus.RaftStateMachine;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -26,22 +26,7 @@ public final class HTTPMessageHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg) {
         FullHttpRequest request = (FullHttpRequest) msg;
-
-        RaftStateMachine.WriteFuture writeFuture = new RaftStateMachine.WriteFuture() {
-            @Override
-            public void onSuccess() {
-
-            }
-
-            @Override
-            public void onCancelled() {
-
-            }
-        };
-
-        if (! stateMachine.writeToCluster(request.content(), writeFuture)) {
-            request.release();
-        }
+        request.release();
     }
 
     @Override

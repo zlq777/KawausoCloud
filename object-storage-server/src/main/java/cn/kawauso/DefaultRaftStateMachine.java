@@ -1,5 +1,7 @@
-package cn.kawauso.main;
+package cn.kawauso;
 
+import cn.kawauso.util.WriteFuture;
+import cn.kawauso.consensus.RaftStateMachineBaseImpl;
 import cn.kawauso.network.UDPService;
 import io.netty.buffer.ByteBuf;
 import org.apache.logging.log4j.LogManager;
@@ -32,10 +34,10 @@ public final class DefaultRaftStateMachine extends RaftStateMachineBaseImpl {
      *
      * @param entryIndex 可以应用的Entry序列号
      * @param entryData  {@link ByteBuf}，可以应用的Entry数据
-     * @param writeFuture  {@link WriteFuture}，仅在Leader节点状态下不为null
+     * @param future  {@link WriteFuture}，仅在Leader节点状态下不为null
      */
     @Override
-    public void applyEntryData(long entryIndex, ByteBuf entryData, WriteFuture writeFuture) {
+    public void applyEntryData(long entryIndex, ByteBuf entryData, WriteFuture<?> future) {
         log.info(entryIndex);
         entryData.release();
     }

@@ -12,7 +12,7 @@ import io.netty.channel.socket.DatagramPacket;
 
 import java.util.concurrent.ThreadFactory;
 
-import static cn.kawauso.Utils.getThreadFactory;
+import static cn.kawauso.util.CommonUtils.getThreadFactory;
 
 /**
  * {@link EpollUDPService}是{@link UDPService}的linux平台特化级实现，仅能在linux内核3.9以上版本运行。

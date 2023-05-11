@@ -9,7 +9,7 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import java.util.concurrent.ThreadFactory;
 
-import static cn.kawauso.Utils.getThreadFactory;
+import static cn.kawauso.util.CommonUtils.getThreadFactory;
 
 /**
  * {@link GeneralHTTPService}是{@link HTTPService}的通用级实现，允许运行在所有操作系统上

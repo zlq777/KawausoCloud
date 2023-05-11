@@ -1,10 +1,14 @@
-package cn.kawauso.main;
+package cn.kawauso.consensus;
 
+import cn.kawauso.util.WriteFuture;
+import cn.kawauso.util.WriteFutureImpl;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.HashedWheelTimer;
 import io.netty.util.Timeout;
 import io.netty.util.Timer;
 import io.netty.util.TimerTask;
+import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.concurrent.UnorderedThreadPoolEventExecutor;
 import io.netty.util.internal.ThreadLocalRandom;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,11 +21,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static cn.kawauso.Utils.*;
-import static cn.kawauso.main.RaftMessageType.*;
+import static cn.kawauso.util.CommonUtils.*;
+import static cn.kawauso.consensus.RaftMessageType.*;
 
 /**
- * {@link RaftStateMachineImpl}实现了{@link RaftStateMachine}中的主要逻辑，是整个状态机的核心。同时
+ * {@link RaftStateMachineImpl}实现了{@link RaftStateMachine}中的主要逻辑，是整个状态机的核心。
  * 对于数据读写层相关基础设施方法，{@link RaftStateMachineImpl}并不关心它们是怎么实现的。
  *
  * @author RealDragonking
@@ -32,6 +36,8 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     private static final int MAX_ENTRY_SIZE = 32768;
 
     private final Map<Long, PendingEntry> pendingEntryMap;
+    private final EventExecutor entryCleaner;
+    private final EventExecutor applyExecutor;
     private final ClusterNode[] otherNodes;
     private final Lock locker;
     private final Timer timer;
@@ -77,8 +83,16 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
         this.minElectTimeoutTicks = minElectTimeout / tickValue;
         this.maxElectTimeoutTicks = maxElectTimeout / tickValue;
 
-        ThreadFactory timerThreadFactory = getThreadFactory("S.M-Timer", false);
-        this.timer = new HashedWheelTimer(timerThreadFactory, tickValue, TimeUnit.MILLISECONDS);
+        ThreadFactory threadFactory;
+
+        threadFactory = getThreadFactory("S.M-Timer", false);
+        this.timer = new HashedWheelTimer(threadFactory, tickValue, TimeUnit.MILLISECONDS);
+
+        threadFactory = getThreadFactory("apply-executor", false);
+        this.applyExecutor = new UnorderedThreadPoolEventExecutor(1, threadFactory);
+
+        threadFactory = getThreadFactory("entry-cleaner", false);
+        this.entryCleaner = new UnorderedThreadPoolEventExecutor(1, threadFactory);
 
         this.state = RaftState.FOLLOWER;
         this.isRunning = false;
@@ -113,8 +127,8 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                 timer.newTimeout(this, 0, TimeUnit.MILLISECONDS);
                 locker.lock();
                 if (waitTicks == 0) {
-                    switch (state) {
 
+                    switch (state) {
                        case FOLLOWER:
                            log.info("Timeout ! State has changed to candidate.");
                            state = RaftState.CANDIDATE;
@@ -126,8 +140,8 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                            log.info("Timeout ! Candidate will restart a new prevote election!");
                            waitTicks = resetWaitTicks = randomElectTicks();
                            startNewVote(true);
-
                     }
+
                 } else {
                     waitTicks --;
                 }
@@ -147,6 +161,8 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     public void close() throws Exception {
         isRunning = false;
         timer.stop();
+        entryCleaner.shutdownGracefully();
+        applyExecutor.shutdownGracefully();
     }
 
     /**
@@ -230,6 +246,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
         if (voterTerm == currentTerm && state == RaftState.CANDIDATE) {
 
             if (isLeader) {
+
                 state = RaftState.FOLLOWER;
                 waitTicks = resetWaitTicks = randomElectTicks();
 
@@ -293,7 +310,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                 for (long i = this.commitEntryIndex + 1; i <= commitEntryIndex; i++) {
                     PendingEntry entry = pendingEntryMap.remove(i);
 
-                    applyEntryData(i, entry.data, null);
+                    applyEntryData0(i, entry.data, null);
                     changeCommitEntryIndex(commitEntryIndex);
                 }
             }
@@ -371,9 +388,9 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
                     if (++ entry.syncedSuccessNumber == majority) {
                         ByteBuf entryData = entry.data;
-                        WriteFuture future = entry.writeFuture;
+                        WriteFuture<?> future = entry.writeFuture;
 
-                        applyEntryData(entryIndex, entryData.retain(), future);
+                        applyEntryData0(entryIndex, entryData.retain(), future);
                         changeCommitEntryIndex(entryIndex);
                     }
                 }
@@ -414,20 +431,18 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      * 这里出于UDP数据包大小限制，我们会对长度超过{@link #MAX_ENTRY_SIZE}的{@link ByteBuf}进行异常抛出。
      *
      * @param byteBuf     {@link ByteBuf}字节缓冲区，并不会修改读指针的位置和引用计数
-     * @param future {@link WriteFuture}，用于接收并处理异步回调通知
      *
      * @return 数据是否能够被写入
      */
     @Override
-    public boolean writeToCluster(ByteBuf byteBuf, WriteFuture future) {
-
-        if (future == null) {
-            throw new NullPointerException("WriteFuture cannot be null !");
-        }
+    @SuppressWarnings("unchecked")
+    public <T> WriteFuture<T> writeToCluster(ByteBuf byteBuf) {
 
         if (byteBuf.readableBytes() > MAX_ENTRY_SIZE) {
             throw new UnsupportedOperationException("ByteBuf is too big ! Max size is 32768 Bytes");
         }
+
+        WriteFuture<?> future = new WriteFutureImpl<>();
 
         locker.lock();
 
@@ -455,13 +470,15 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                     }
                 }
 
-                return true;
             } else {
-                return false;
+                future.cancel();
             }
+
         } finally {
             locker.unlock();
         }
+
+        return (WriteFuture<T>) future;
     }
 
     /**
@@ -530,6 +547,17 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      * 确保所有数据已经写入硬盘
      */
     protected abstract void ensureWriteComplete();
+
+    /**
+     * 在一个额外的执行线程中，调用{@link #applyEntryData(long, ByteBuf, WriteFuture)}。这一设计让我们避免了耗时的数据应用过程
+     *
+     * @param entryIndex 可以应用的Entry序列号
+     * @param entryData {@link ByteBuf}，可以应用的Entry数据
+     * @param writeFuture {@link WriteFuture}，仅在Leader节点状态下不为null
+     */
+    private void applyEntryData0(long entryIndex, ByteBuf entryData, WriteFuture<?> writeFuture) {
+        applyExecutor.execute(() -> applyEntryData(entryIndex, entryData, writeFuture));
+    }
 
     /**
      * 修改并持久化{@link #currentTerm}字段
@@ -608,6 +636,21 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     }
 
     /**
+     * 对{@link PendingEntry}执行异步的清空释放操作
+     *
+     * @param entry {@link PendingEntry}
+     */
+    private void clearPendingEntry(PendingEntry entry) {
+        entryCleaner.execute(() -> {
+            ByteBuf entryData = entry.data;
+            entryData.release();
+
+            WriteFuture<?> future = entry.writeFuture;
+            future.cancel();
+        });
+    }
+
+    /**
      * 批量清空{@link #pendingEntryMap}中的部分Entry缓存，并通过{@link ByteBuf#release()}释放堆外内存占用。这个方法只会由leader进行调用
      *
      * @param startIndex 开始清空的Entry序列号
@@ -619,9 +662,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
             if (-- entry.refCnt == 0) {
                 pendingEntryMap.remove(i);
-
-                ByteBuf entryData = entry.data;
-                entryData.release();
+                clearPendingEntry(entry);
             }
         }
     }
@@ -631,8 +672,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      */
     private void clearPendingEntry() {
         for (PendingEntry entry : pendingEntryMap.values()) {
-            ByteBuf entryData = entry.data;
-            entryData.release();
+            clearPendingEntry(entry);
         }
 
         pendingEntryMap.clear();
@@ -934,12 +974,12 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      */
     private static class PendingEntry {
 
-        private final WriteFuture writeFuture;
+        private final WriteFuture<?> writeFuture;
         private final ByteBuf data;
         private volatile int syncedSuccessNumber;
         private volatile int refCnt;
 
-        private PendingEntry(ByteBuf data, WriteFuture writeFuture) {
+        private PendingEntry(ByteBuf data, WriteFuture<?> writeFuture) {
             this.writeFuture = writeFuture;
             this.data = data;
 

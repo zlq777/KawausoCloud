@@ -1,4 +1,4 @@
-package cn.kawauso.main;
+package cn.kawauso.consensus;
 
 import cn.kawauso.network.UDPService;
 import io.netty.buffer.ByteBuf;
