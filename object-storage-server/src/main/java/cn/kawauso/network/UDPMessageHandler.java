@@ -40,6 +40,7 @@ public final class UDPMessageHandler extends ChannelInboundHandlerAdapter {
         ByteBuf byteBuf = packet.content();
 
         if (stateMachine.isRunning()) {
+
             switch (byteBuf.readInt()) {
 
                 case VOTE_REQUEST:
@@ -84,6 +85,7 @@ public final class UDPMessageHandler extends ChannelInboundHandlerAdapter {
                     byteBuf.release();
                     break;
             }
+
         } else {
             byteBuf.release();
         }

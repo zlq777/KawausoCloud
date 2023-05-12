@@ -84,7 +84,8 @@ public interface RaftStateMachine {
      *
      * @param entryIndex 可以应用的Entry序列号
      * @param entryData {@link ByteBuf}，可以应用的Entry数据
-     * @param future {@link WriteFuture}，仅在Leader节点状态下不为null
+     * @param future {@link WriteFuture}，可能为null，这取决于leader节点在处理用户写入请求时，是否发生过重启或者轮换。
+     *                                  对于follower节点来说，一般都会是null
      */
     void applyEntryData(long entryIndex, ByteBuf entryData, WriteFuture<?> future);
 

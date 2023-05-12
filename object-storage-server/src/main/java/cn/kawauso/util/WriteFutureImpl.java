@@ -3,56 +3,64 @@ package cn.kawauso.util;
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
 
 /**
- * {@link WriteFutureImpl}作为{@link WriteFuture}的默认实现，采用数组作为{@link WriteFutureEventListener}的存储结构
+ * {@link WriteFutureImpl}作为{@link WriteFuture}的默认实现，采用数组作为{@link SuccessEventListener}的存储结构
  *
  * @author RealDragonking
  * @param <T> 通知结果的类型
  */
 public final class WriteFutureImpl<T> implements WriteFuture<T>{
 
-    private final Array onSuccessListeners;
-    private final Array onCancelListeners;
+    private final ListenerList onSuccessListeners;
+    private final ListenerList onCancelListeners;
     private volatile boolean hasCancelled;
     private volatile boolean hasComplete;
     private T result;
 
     public WriteFutureImpl() {
-        this.onSuccessListeners = new Array();
-        this.onCancelListeners = new Array();
+        this.onSuccessListeners = new ListenerList();
+        this.onCancelListeners = new ListenerList();
         this.hasCancelled = false;
         this.hasComplete = false;
     }
 
     /**
-     * 针对特定的{@link WriteFutureEvent}，注册一个{@link WriteFutureEventListener}
+     * 针对成功写入事件，注册添加一个{@link SuccessEventListener}监听回调函数
      *
-     * @param event    {@link WriteFutureEvent}
-     * @param listener {@link WriteFutureEventListener}
+     * @param listener {@link SuccessEventListener}
      * @return {@link WriteFuture}
      */
     @Override
-    public WriteFuture<T> addListener(WriteFutureEvent event, WriteFutureEventListener<T> listener) {
+    public WriteFuture<T> onSuccess(SuccessEventListener<T> listener) {
 
-        checkNotNull(event, "WriteFutureEvent cannot be null !");
         checkNotNull(listener, "WriteFutureListener cannot be null !");
 
         synchronized (this) {
-            switch (event) {
+            if (hasComplete) {
+                listener.onNotifySuccess(result);
+            } else if (! hasCancelled) {
+                onSuccessListeners.add(listener);
+            }
+        }
 
-                case ON_SUCCESS:
-                    if (hasComplete) {
-                        listener.onNotify(result);
-                    } else if (! hasCancelled) {
-                        onSuccessListeners.add(listener);
-                    }
-                    break;
+        return this;
+    }
 
-                case ON_CANCEL:
-                    if (hasCancelled) {
-                        listener.onNotify(null);
-                    } else if (! hasComplete) {
-                        onCancelListeners.add(listener);
-                    }
+    /**
+     * 针对取消写入事件，注册添加一个{@link SuccessEventListener}监听回调函数
+     *
+     * @param listener {@link SuccessEventListener}
+     * @return {@link WriteFuture}
+     */
+    @Override
+    public WriteFuture<T> onCancel(CancelEventListener listener) {
+
+        checkNotNull(listener, "WriteFutureListener cannot be null !");
+
+        synchronized (this) {
+            if (hasCancelled) {
+                listener.onNotifyCancel();
+            } else if (! hasComplete) {
+                onCancelListeners.add(listener);
             }
         }
 
@@ -66,7 +74,7 @@ public final class WriteFutureImpl<T> implements WriteFuture<T>{
      */
     @Override
     @SuppressWarnings("unchecked")
-    public void notify(T result) {
+    public void notifySuccess(Object result) {
         synchronized (this) {
 
             if (hasCancelled || hasComplete) {
@@ -74,71 +82,70 @@ public final class WriteFutureImpl<T> implements WriteFuture<T>{
             }
 
             this.hasComplete = true;
-            this.result = result;
+            this.result = (T) result;
 
-            for (Object element : onSuccessListeners.elementData) {
-                WriteFutureEventListener<T> listener = (WriteFutureEventListener<T>) element;
-                listener.onNotify(result);
+            for (int i = 0; i < onSuccessListeners.pos; i++) {
+                SuccessEventListener<T> listener = (SuccessEventListener<T>) onSuccessListeners.bucket[i];
+                listener.onNotifySuccess(this.result);
             }
         }
     }
 
     /**
-     * 取消执行
+     * 通知异步写入取消
      */
     @Override
-    @SuppressWarnings("unchecked")
-    public void cancel() {
+    public void notifyCancel() {
         synchronized (this) {
 
-            if (hasComplete || hasCancelled) {
+            if (hasCancelled || hasComplete) {
                 return;
             }
 
             this.hasCancelled = true;
 
-            for (Object element : onSuccessListeners.elementData) {
-                WriteFutureEventListener<T> listener = (WriteFutureEventListener<T>) element;
-                listener.onNotify(null);
+            for (int i = 0; i < onCancelListeners.pos; i++) {
+                CancelEventListener listener = (CancelEventListener) onCancelListeners.bucket[i];
+                listener.onNotifyCancel();
             }
         }
     }
 
     /**
-     * {@link Array}实现了一个简易的动态可扩容数组
+     * {@link ListenerList}实现了一个简易的动态可扩容数组，作为{@link SuccessEventListener}监听回调函数的容器
      *
      * @author RealDragonking
      */
-    private static class Array {
+    private static class ListenerList {
 
         private volatile int pos;
-        private Object[] elementData;
+        private Object[] bucket;
 
-        private Array() {
+        private ListenerList() {
             this(1);
         }
 
-        private Array(int initialCapacity) {
-            this.elementData = new Object[initialCapacity];
+        private ListenerList(int initialCapacity) {
+            this.bucket = new Object[initialCapacity];
             this.pos = 0;
         }
 
         /**
-         * 插入一个元素
+         * 插入一个新的监听回调函数，并且视情况进行扩容
          *
-         * @param element 元素
+         * @param newListener 新的监听回调函数
          */
-        private void add(Object element) {
-            int len = elementData.length;
+        private void add(Object newListener) {
+            int len = bucket.length;
 
-            if (len == pos) {
-                Object[] newElementData = new Object[len << 1];
-                System.arraycopy(elementData, 0, newElementData, 0, len);
+            if (pos == len) {
+                Object[] newBucket = new Object[len << 1];
+                System.arraycopy(bucket, 0, newBucket, 0, len);
 
-                elementData = newElementData;
+                bucket = newBucket;
             }
 
-            elementData[pos ++] = element;
+            bucket[pos ++] = newListener;
         }
 
     }

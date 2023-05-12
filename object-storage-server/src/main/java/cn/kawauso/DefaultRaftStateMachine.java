@@ -38,7 +38,9 @@ public final class DefaultRaftStateMachine extends RaftStateMachineBaseImpl {
      */
     @Override
     public void applyEntryData(long entryIndex, ByteBuf entryData, WriteFuture<?> future) {
-        log.info(entryIndex);
+        if (future != null) {
+            future.notifySuccess(entryIndex);
+        }
         entryData.release();
     }
 

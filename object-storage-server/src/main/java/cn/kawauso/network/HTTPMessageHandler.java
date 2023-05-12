@@ -1,12 +1,17 @@
 package cn.kawauso.network;
 
 import cn.kawauso.consensus.RaftStateMachine;
+import cn.kawauso.util.WriteFuture;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+
+import static io.netty.handler.codec.http.HttpHeaderNames.*;
 
 /**
  * {@link HTTPMessageHandler}作为{@link ChannelInboundHandlerAdapter}的子类，
@@ -27,12 +32,33 @@ public final class HTTPMessageHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg) {
         FullHttpRequest request = (FullHttpRequest) msg;
         request.release();
+
+        FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+        response.headers().set(CONTENT_LENGTH, 0);
+
+        ctx.writeAndFlush(response);
+
+        ByteBuf byteBuf = ByteBufAllocator.DEFAULT.buffer();
+        for (int i = 0; i < 32768; i++) {
+            byteBuf.writeByte(0);
+        }
+
+        log.info("开始写！");
+        write(byteBuf);
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         cause.printStackTrace();
         ctx.close();
+    }
+
+    private void write(ByteBuf byteBuf) {
+        WriteFuture<Long> future = stateMachine.writeToCluster(byteBuf.retain());
+        future.onSuccess(result -> {
+            log.info(result);
+            write(byteBuf);
+        });
     }
 
 }
