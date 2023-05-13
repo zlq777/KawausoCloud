@@ -67,11 +67,23 @@ public final class UDPMessageHandler extends ChannelInboundHandlerAdapter {
                     break;
 
                 case LEADER_MESSAGE:
+                    int leaderIndex = byteBuf.readInt();
+                    long leaderTerm = byteBuf.readLong();
+                    long commitEntryIndex = byteBuf.readLong();
+                    long entryIndex = 0L;
+                    long entryTerm = 0L;
+
+                    if (byteBuf.readableBytes() > 0) {
+                        entryIndex = byteBuf.readLong();
+                        entryTerm = byteBuf.readLong();
+                    }
+
                     stateMachine.recvMessageFromLeader(
-                            byteBuf.readInt(),
-                            byteBuf.readLong(),
-                            byteBuf.readLong(),
-                            byteBuf.readableBytes() > 0 ? byteBuf.readLong() : 0L,
+                            leaderIndex,
+                            leaderTerm,
+                            commitEntryIndex,
+                            entryIndex,
+                            entryTerm,
                             byteBuf
                     );
                     break;

@@ -35,7 +35,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     private static final Logger log = LogManager.getLogger(RaftStateMachine.class);
     private static final int MAX_ENTRY_SIZE = 32768;
 
-    private final Map<Long, PendingEntry> pendingEntryMap;
+    private final Map<Long, Entry> pendingEntryMap;
     private final ClusterNode[] commitPriorityBucket;
     private final EventExecutor applyExecutor;
     private final EventExecutor entryCleaner;
@@ -260,10 +260,12 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                 state = RaftState.FOLLOWER;
                 waitTicks = resetWaitTicks = randomElectTicks();
 
-            } else if (inPrevote == this.inPrevote) {
+            } else {
+                if (inPrevote == this.inPrevote) {
 
-                if (! inPrevote || prevoteRound == this.prevoteRound) {
-                    changeBallots(isSuccess);
+                    if (! inPrevote || prevoteRound == this.prevoteRound) {
+                        changeBallots(isSuccess);
+                    }
                 }
             }
         }
@@ -276,14 +278,16 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      *
      * @param leaderIndex      leader节点的序列号
      * @param leaderTerm       leader节点的任期
-     * @param commitEntryIndex 允许当前节点提交并应用的Entry序列号
+     * @param enableCommitEntryIndex 允许当前节点提交并应用的Entry序列号
      * @param entryIndex       新同步的Entry序列号
+     * @param entryTerm        新同步的Entry任期
      * @param entryData        新同步的Entry数据
      */
     @Override
     public void recvMessageFromLeader(int leaderIndex, long leaderTerm,
-                                      long commitEntryIndex,
-                                      long entryIndex, ByteBuf entryData) {
+                                      long enableCommitEntryIndex,
+                                      long entryIndex, long entryTerm,
+                                      ByteBuf entryData) {
 
         ClusterNode leaderNode = findClusterNode(leaderIndex);
 
@@ -312,22 +316,16 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
             log.info("Receive Message from leader ! " +
                     "leader: {} " +
-                    "{Message: enable-commit-entry-index={} new-sync-entry-index={}} " +
+                    "{Message: enable-commit-entry-index={} new-sync-entry-index={} new-sync-entry-term={}} " +
                     "{StateMachine: commit-entry-index={} synced-entry-index={}}",
-                    leaderIndex, commitEntryIndex, entryIndex, this.commitEntryIndex, syncedEntryIndex);
+                    leaderIndex, enableCommitEntryIndex, entryIndex, entryTerm, commitEntryIndex, syncedEntryIndex);
 
             // 对于可提交Entry的情况，进行Entry的批量提交
-            if (this.commitEntryIndex < commitEntryIndex) {
-                for (long i = this.commitEntryIndex + 1; i <= commitEntryIndex; i++) {
+            if (commitEntryIndex < enableCommitEntryIndex) {
+                for (long i = commitEntryIndex + 1; i <= enableCommitEntryIndex; i++) {
+                    Entry entry = pendingEntryMap.remove(i);
 
-                    PendingEntry entry;
-
-                    if ((entry = pendingEntryMap.remove(i)) != null) {
-                        applyEntryData0(i, entry.data, null);
-                    } else {
-                        applyEntryData0(i, readEntry(i), null);
-                    }
-
+                    applyEntryData0(i, entry.term, entry.data, entry.future);
                     changeCommitEntryIndex(i);
                 }
             }
@@ -339,7 +337,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                 return;
             }
 
-            PendingEntry newEntry = new PendingEntry(entryData.retain(), null);
+            Entry newEntry = new Entry(entryTerm, entryData.retain(), null);
             pendingEntryMap.put(entryIndex, newEntry);
 
             long syncedEntryIndex = this.syncedEntryIndex;
@@ -352,18 +350,20 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
             if (this.syncedEntryIndex < syncedEntryIndex) {
 
                 for (long i = this.syncedEntryIndex + 1; i <= syncedEntryIndex; i++) {
-                    PendingEntry entry = pendingEntryMap.get(i);
+                    Entry entry = pendingEntryMap.get(i);
                     ByteBuf byteBuf = entry.data;
 
-                    writeEntry(i, byteBuf);
+                    if (syncedEntryIndex > lastEntryIndex) {
+                        writeEntry(i, entryTerm, byteBuf);
+
+                        changeLastEntryIndex(syncedEntryIndex);
+                        changeLastEntryTerm(entryTerm);
+                    } else {
+                        writeEntry(i, entryTerm, byteBuf);
+                    }
                 }
 
-                ensureWriteComplete();
-
                 this.syncedEntryIndex = syncedEntryIndex;
-
-                changeLastEntryIndex(syncedEntryIndex);
-                changeLastEntryTerm(currentTerm);
 
                 leaderNode.sendResponse(syncedEntryIndex);
             }
@@ -393,8 +393,6 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
         }
 
         if (state == RaftState.LEADER) {
-
-            // 如果已经完成同步的index不小于对应节点视图的左边界，我们应该动态调整新的发送窗口
             if (syncedEntryIndex >= node.leftIndex) {
 
                 long newLeftIndex = syncedEntryIndex + 1;
@@ -402,7 +400,39 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
                 node.commitIndex = syncedEntryIndex;
 
-                tryCommitNewEntry(node);
+                final ClusterNode[] priorityBucket = this.commitPriorityBucket;
+
+                for (int i = 0; i < node.commitPriorityIndex; i++) {
+                    if (priorityBucket[i].commitIndex < syncedEntryIndex) {
+
+                        int replaceIndex = priorityBucket[i].commitPriorityIndex;
+                        node.commitPriorityIndex = replaceIndex;
+
+                        for (int j = node.commitPriorityIndex; j > replaceIndex; j--) {
+                            priorityBucket[j] = priorityBucket[j - 1];
+                            priorityBucket[j].commitPriorityIndex = j;
+                        }
+
+                        break;
+                    }
+                }
+
+                long enableCommitIndex = priorityBucket[majority - 2].commitIndex;
+
+                if (commitEntryIndex < enableCommitIndex) {
+                    for (long i = commitEntryIndex + 1; i <= enableCommitIndex; i++) {
+                        Entry entry = pendingEntryMap.get(i);
+
+                        if (entry != null) {
+                            entry.data.retain();
+                        } else {
+                            entry = readEntry(i);
+                        }
+
+                        applyEntryData0(i, entry.term, entry.data, entry.future);
+                        changeCommitEntryIndex(i);
+                    }
+                }
 
                 // 一般来讲，如果是正在同步中，syncedEntryIndex是必然要比node的rightIndex小的
                 // 这里大于等于，有且只有一种情况，即刚上任的leader初始化获取节点的已同步index
@@ -452,13 +482,12 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
                 long newEntryIndex = lastEntryIndex + 1;
 
-                writeEntry(newEntryIndex, byteBuf);
-                ensureWriteComplete();
+                writeEntry(newEntryIndex, currentTerm, byteBuf);
 
                 changeLastEntryIndex(newEntryIndex);
                 changeLastEntryTerm(currentTerm);
 
-                PendingEntry entry = new PendingEntry(byteBuf, future);
+                Entry entry = new Entry(currentTerm, byteBuf, future);
                 pendingEntryMap.put(newEntryIndex, entry);
 
                 for (ClusterNode node : otherNodes) {
@@ -528,34 +557,32 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     protected abstract void writeInt(String key, int value);
 
     /**
-     * 从本地缓存中读取Entry数据，并写入{@link ByteBuf}中
+     * 按照给定的Entry序列号，从本地缓存中读取Entry的所属任期和实际数据，并写入{@link ByteBuf}中
      *
      * @param entryIndex Entry的序列号
+     * @return {@link Entry}
      */
-    protected abstract ByteBuf readEntry(long entryIndex);
+    protected abstract Entry readEntry(long entryIndex);
 
     /**
      * 向本地缓存中写入Entry的数据，这不需要增加{@link ByteBuf}的读指针位置
      *
      * @param entryIndex Entry的序列号
-     * @param byteBuf {@link ByteBuf}字节缓冲区
+     * @param entryTerm Entry的所属任期
+     * @param entryData Entry的数据
      */
-    protected abstract void writeEntry(long entryIndex, ByteBuf byteBuf);
+    protected abstract void writeEntry(long entryIndex, long entryTerm, ByteBuf entryData);
 
     /**
-     * 确保所有数据已经写入硬盘
-     */
-    protected abstract void ensureWriteComplete();
-
-    /**
-     * 在一个额外的执行线程中，调用{@link #applyEntryData(long, ByteBuf, WriteFuture)}。这一设计让我们避免了耗时的数据应用过程
+     * 在一个额外的执行线程中，调用{@link #applyEntryData(long, long, ByteBuf, WriteFuture)}。这一设计让我们避免了耗时的数据应用过程
      *
      * @param entryIndex 可以应用的Entry序列号
+     * @param entryTerm 可以应用的Entry所属任期
      * @param entryData {@link ByteBuf}，可以应用的Entry数据
      * @param future {@link WriteFuture}，仅在Leader节点状态下不为null
      */
-    private void applyEntryData0(long entryIndex, ByteBuf entryData, WriteFuture<?> future) {
-        applyExecutor.execute(() -> applyEntryData(entryIndex, entryData, future));
+    private void applyEntryData0(long entryIndex, long entryTerm, ByteBuf entryData, WriteFuture<?> future) {
+        applyExecutor.execute(() -> applyEntryData(entryIndex, entryTerm, entryData, future));
     }
 
     /**
@@ -587,10 +614,8 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      *
      */
     private void changeLastEntryIndex(long lastEntryIndex) {
-        if (this.lastEntryIndex != lastEntryIndex) {
-            this.lastEntryIndex = lastEntryIndex;
-            writeLong("last-entry-index", lastEntryIndex);
-        }
+        this.lastEntryIndex = lastEntryIndex;
+        writeLong("last-entry-index", lastEntryIndex);
     }
 
     /**
@@ -616,17 +641,17 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     }
 
     /**
-     * 批量加载{@link PendingEntry}缓存，对于不存在的Entry缓存将尝试从硬盘读取，对于已经存在的Entry缓存则是简单的增加引用计数。这个方法只会由leader进行调用
+     * 批量加载{@link Entry}缓存，对于不存在的Entry缓存将尝试从硬盘读取，对于已经存在的Entry缓存则是简单的增加引用计数。这个方法只会由leader进行调用
      *
      * @param startIndex 开始加载的Entry序列号
      * @param endIndex 结束加载的Entry序列号
      */
     private void loadPendingEntry(long startIndex, long endIndex) {
         for (long i = startIndex; i < endIndex; i++) {
-            PendingEntry entry = pendingEntryMap.get(i);
+            Entry entry = pendingEntryMap.get(i);
 
             if (entry == null) {
-                entry = new PendingEntry(readEntry(i), null);
+                entry = readEntry(i);
                 pendingEntryMap.put(i, entry);
             }
 
@@ -642,7 +667,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      */
     private void releasePendingEntry(long startIndex, long endIndex) {
         for (long i = startIndex; i < endIndex; i++) {
-            PendingEntry entry = pendingEntryMap.get(i);
+            Entry entry = pendingEntryMap.get(i);
 
             if (-- entry.refCnt == 0) {
                 pendingEntryMap.remove(i);
@@ -655,7 +680,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      * 清空{@link #pendingEntryMap}中所有的Entry缓存，并通过{@link ByteBuf#release()}释放堆外内存占用
      */
     private void clearPendingEntry() {
-        for (PendingEntry entry : pendingEntryMap.values()) {
+        for (Entry entry : pendingEntryMap.values()) {
             entryCleaner.execute(() -> {
                 ByteBuf entryData = entry.data;
                 entryData.release();
@@ -669,48 +694,6 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     }
 
     /**
-     * 尝试更新全局Entry的提交进度，这个方法只会由leader进行调用
-     *
-     * @param node Entry提交状态发生变化的节点
-     */
-    private void tryCommitNewEntry(ClusterNode node) {
-
-        final ClusterNode[] priorityBucket = this.commitPriorityBucket;
-
-        for (int i = 0; i < node.commitPriorityIndex; i++) {
-            if (priorityBucket[i].commitIndex < node.commitIndex) {
-
-                int replaceIndex = priorityBucket[i].commitPriorityIndex;
-                node.commitPriorityIndex = replaceIndex;
-
-                for (int j = node.commitPriorityIndex; j > replaceIndex; j--) {
-                    priorityBucket[j] = priorityBucket[j - 1];
-                    priorityBucket[j].commitPriorityIndex = j;
-                }
-
-                break;
-            }
-        }
-
-        long newEnableCommitIndex = priorityBucket[majority - 2].commitIndex;
-
-        if (newEnableCommitIndex > commitEntryIndex) {
-            for (long i = commitEntryIndex + 1; i <= newEnableCommitIndex; i++) {
-
-                PendingEntry pendingEntry;
-
-                if ((pendingEntry = pendingEntryMap.get(i)) != null) {
-                    applyEntryData0(i, pendingEntry.data.retain(), pendingEntry.future);
-                } else {
-                    applyEntryData0(i, readEntry(i), null);
-                }
-
-                changeCommitEntryIndex(i);
-            }
-        }
-    }
-
-    /**
      * 遇到大于本节点任期的情况，主动转换为follower，并且执行相关操作
      *
      * @param higherTerm 其他节点的更高任期
@@ -721,6 +704,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
         changeVotedForIndex(-1);
 
         if (state == RaftState.LEADER) {
+            log.info("Accept higher term ! Leader has changed to follower");
             clearPendingEntry();
         }
 
@@ -946,12 +930,13 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
          */
         private void sendEntrySyncMessage(long leftIndex, long rightIndex) {
             for (long i = leftIndex; i < rightIndex; i++) {
-                PendingEntry entry = pendingEntryMap.get(i);
+                Entry entry = pendingEntryMap.get(i);
 
                 ByteBuf byteBuf = buildLeaderMessage();
                 ByteBuf entryData = entry.data;
 
-                byteBuf.writeLong(i);
+                byteBuf.writeLong(i).writeLong(entry.term);
+
                 byteBuf.writeBytes(entryData, 0, entryData.readableBytes());
 
                 sendDatagramPacket(address, byteBuf);
@@ -1001,19 +986,21 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     }
 
     /**
-     * {@link PendingEntry}定义了一个等待发送的Entry缓存结构体
+     * {@link Entry}定义了一个Entry结构体，Entry数据的来源可能是网络通信，也可能是本地硬盘，这取决于不同的场景
      *
      * @author RealDragonking
      */
-    private static class PendingEntry {
+    protected static class Entry {
 
         private final WriteFuture<?> future;
         private final ByteBuf data;
+        private final long term;
         private volatile int refCnt;
 
-        private PendingEntry(ByteBuf data, WriteFuture<?> future) {
+        protected Entry(long term, ByteBuf data, WriteFuture<?> future) {
             this.future = future;
             this.data = data;
+            this.term = term;
             this.refCnt = 0;
         }
 

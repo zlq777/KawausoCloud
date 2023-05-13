@@ -62,13 +62,15 @@ public interface RaftStateMachine {
      *
      * @param leaderIndex leader节点的序列号
      * @param leaderTerm leader节点的任期
-     * @param commitEntryIndex 允许当前节点提交并应用的Entry序列号
+     * @param enableCommitEntryIndex 允许当前节点提交并应用的Entry序列号
      * @param entryIndex 新同步的Entry序列号
+     * @param entryTerm 新同步的Entry任期
      * @param entryData 新同步的Entry数据
      */
     void recvMessageFromLeader(int leaderIndex, long leaderTerm,
-                               long commitEntryIndex,
-                               long entryIndex, ByteBuf entryData);
+                               long enableCommitEntryIndex,
+                               long entryIndex, long entryTerm,
+                               ByteBuf entryData);
 
     /**
      * 接收并处理来自于其它节点针对leader消息的响应
@@ -83,11 +85,12 @@ public interface RaftStateMachine {
      * 将已经写入到集群大多数节点、当前节点可以应用的Entry数据进行应用
      *
      * @param entryIndex 可以应用的Entry序列号
+     * @param entryTerm 可以应用的Entry所属任期
      * @param entryData {@link ByteBuf}，可以应用的Entry数据
      * @param future {@link WriteFuture}，可能为null，这取决于leader节点在处理用户写入请求时，是否发生过重启或者轮换。
      *                                  对于follower节点来说，一般都会是null
      */
-    void applyEntryData(long entryIndex, ByteBuf entryData, WriteFuture<?> future);
+    void applyEntryData(long entryIndex, long entryTerm, ByteBuf entryData, WriteFuture<?> future);
 
     /**
      * 将{@link ByteBuf}字节缓冲区中的数据写入整个集群，写入结果会通过异步方式进行通知

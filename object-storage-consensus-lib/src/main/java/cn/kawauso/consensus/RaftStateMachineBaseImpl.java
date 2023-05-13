@@ -198,14 +198,16 @@ public abstract class RaftStateMachineBaseImpl extends RaftStateMachineImpl {
     }
 
     /**
-     * 从本地缓存中读取Entry数据，并写入{@link ByteBuf}中
+     * 按照给定的Entry序列号，从本地缓存中读取Entry的所属任期和实际数据，并写入{@link ByteBuf}中
      *
      * @param entryIndex Entry的序列号
+     * @return {@link Entry}
      */
     @Override
-    protected ByteBuf readEntry(long entryIndex) {
+    protected Entry readEntry(long entryIndex) {
         long position = readLong(entryIndex + "pos");
         long length = readLong(entryIndex + "len");
+        long term = readLong(entryIndex + "term");
 
         ByteBuf byteBuf = allocator.buffer();
 
@@ -216,18 +218,19 @@ public abstract class RaftStateMachineBaseImpl extends RaftStateMachineImpl {
             e.printStackTrace();
         }
 
-        return byteBuf;
+        return new Entry(term, byteBuf, null);
     }
 
     /**
      * 向本地缓存中写入Entry的数据，这不需要增加{@link ByteBuf}的读指针位置
      *
      * @param entryIndex Entry的序列号
-     * @param byteBuf    {@link ByteBuf}字节缓冲区
+     * @param entryTerm  Entry的所属任期
+     * @param entryData  Entry的数据
      */
     @Override
-    protected void writeEntry(long entryIndex, ByteBuf byteBuf) {
-        ByteBuffer byteBuffer = byteBuf.nioBuffer();
+    protected void writeEntry(long entryIndex, long entryTerm, ByteBuf entryData) {
+        ByteBuffer byteBuffer = entryData.nioBuffer();
 
         long prevEntryIndex = entryIndex - 1;
         long position = readLong(prevEntryIndex + "pos") + readLong(prevEntryIndex + "len");
@@ -245,18 +248,7 @@ public abstract class RaftStateMachineBaseImpl extends RaftStateMachineImpl {
 
         writeLong(entryIndex + "pos", position);
         writeLong(entryIndex + "len", length);
-    }
-
-    /**
-     * 确保所有Entry数据已经写入硬盘
-     */
-    @Override
-    protected void ensureWriteComplete() {
-        try {
-            entryDataFileChannel.force(true);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        writeLong(entryIndex + "term", entryTerm);
     }
 
     /**
