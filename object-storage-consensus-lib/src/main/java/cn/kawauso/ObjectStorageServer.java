@@ -3,9 +3,7 @@ package cn.kawauso;
 import cn.kawauso.consensus.RaftStateMachine;
 import cn.kawauso.network.*;
 import cn.kawauso.util.CommonUtils;
-import io.netty.channel.ChannelInboundHandler;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPipeline;
+import io.netty.channel.*;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.socket.DatagramChannel;
 import io.netty.channel.socket.SocketChannel;
@@ -158,6 +156,7 @@ public class ObjectStorageServer {
                 @Override
                 protected void initChannel(@NotNull SocketChannel ch) {
                     ChannelPipeline pipeline = ch.pipeline();
+
                     HttpServerCodec serverCodec = new HttpServerCodec(
                             DEFAULT_MAX_INITIAL_LINE_LENGTH,
                             DEFAULT_MAX_HEADER_SIZE,

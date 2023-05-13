@@ -1,9 +1,7 @@
 package cn.kawauso.network;
 
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.DatagramChannel;
 import io.netty.channel.socket.DatagramPacket;
@@ -75,9 +73,11 @@ public final class GeneralUDPService implements UDPService {
     @Override
     public void start() throws Exception {
         Bootstrap bootstrap = new Bootstrap();
+        RecvByteBufAllocator recvAllocator = new FixedRecvByteBufAllocator(65535);
 
         bootstrap.group(ioThreadGroup)
                 .channel(NioDatagramChannel.class)
+                .option(ChannelOption.RCVBUF_ALLOCATOR, recvAllocator)
                 .handler(initializer);
 
         channel = bootstrap.bind(port).sync().channel();

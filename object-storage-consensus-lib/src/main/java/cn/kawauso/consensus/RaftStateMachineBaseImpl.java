@@ -49,7 +49,7 @@ public abstract class RaftStateMachineBaseImpl extends RaftStateMachineImpl {
         this.kvStore = initKVStore();
         this.entryDataFileChannel = initEntryDataFileChannel();
 
-        this.writeOptions = new WriteOptions().sync(true);
+        this.writeOptions = new WriteOptions().sync(false);
         this.allocator = ByteBufAllocator.DEFAULT;
         this.udpService = udpService;
     }

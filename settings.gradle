@@ -1,4 +1,4 @@
 rootProject.name = 'KawausoCloud'
 include 'information-manage-server'
-include 'object-storage-server'
+include 'object-storage-consensus-lib'
 

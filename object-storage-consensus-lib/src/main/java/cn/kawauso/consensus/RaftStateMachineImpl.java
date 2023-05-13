@@ -14,9 +14,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.net.InetSocketAddress;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -37,10 +36,10 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     private static final int MAX_ENTRY_SIZE = 32768;
 
     private final Map<Long, PendingEntry> pendingEntryMap;
+    private final ClusterNode[] commitPriorityBucket;
     private final EventExecutor applyExecutor;
     private final EventExecutor entryCleaner;
     private final ClusterNode[] otherNodes;
-    private final long[] indexTempBucket;
     private final Lock locker;
     private final Timer timer;
 
@@ -73,7 +72,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                                 int sendWindowSize,
                                 String[] allNodeAddresses) {
 
-        this.pendingEntryMap = new TreeMap<>();
+        this.pendingEntryMap = new HashMap<>();
         this.locker = new ReentrantLock();
 
         this.index = index;
@@ -82,7 +81,9 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
         int otherNodeNumber = otherNodes.length;
 
         this.majority = ((otherNodeNumber + 1) >> 1) + 1;
-        this.indexTempBucket = new long[otherNodeNumber];
+        this.commitPriorityBucket = new ClusterNode[otherNodeNumber];
+
+        System.arraycopy(otherNodes, 0, commitPriorityBucket, 0, otherNodeNumber);
 
         this.sendWindowSize = sendWindowSize;
         this.sendIntervalTicks = sendInterval / tickValue;
@@ -318,10 +319,16 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
             // 对于可提交Entry的情况，进行Entry的批量提交
             if (this.commitEntryIndex < commitEntryIndex) {
                 for (long i = this.commitEntryIndex + 1; i <= commitEntryIndex; i++) {
-                    PendingEntry entry = pendingEntryMap.remove(i);
 
-                    applyEntryData0(i, entry.data, null);
-                    changeCommitEntryIndex(commitEntryIndex);
+                    PendingEntry entry;
+
+                    if ((entry = pendingEntryMap.remove(i)) != null) {
+                        applyEntryData0(i, entry.data, null);
+                    } else {
+                        applyEntryData0(i, readEntry(i), null);
+                    }
+
+                    changeCommitEntryIndex(i);
                 }
             }
 
@@ -395,7 +402,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
                 node.commitIndex = syncedEntryIndex;
 
-                tryCommitNewEntry();
+                tryCommitNewEntry(node);
 
                 // 一般来讲，如果是正在同步中，syncedEntryIndex是必然要比node的rightIndex小的
                 // 这里大于等于，有且只有一种情况，即刚上任的leader初始化获取节点的已同步index
@@ -447,8 +454,6 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
                 writeEntry(newEntryIndex, byteBuf);
                 ensureWriteComplete();
-
-                writeLong(newEntryIndex + "term", currentTerm);
 
                 changeLastEntryIndex(newEntryIndex);
                 changeLastEntryTerm(currentTerm);
@@ -664,35 +669,43 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     }
 
     /**
-     * 尝试更新Entry的提交进度，这个方法只会由leader进行调用
+     * 尝试更新全局Entry的提交进度，这个方法只会由leader进行调用
+     *
+     * @param node Entry提交状态发生变化的节点
      */
-    private void tryCommitNewEntry() {
+    private void tryCommitNewEntry(ClusterNode node) {
 
-        final ClusterNode[] otherNodes = this.otherNodes;
-        final long[] indexTempBucket = this.indexTempBucket;
+        final ClusterNode[] priorityBucket = this.commitPriorityBucket;
 
-        int len = otherNodes.length;
+        for (int i = 0; i < node.commitPriorityIndex; i++) {
+            if (priorityBucket[i].commitIndex < node.commitIndex) {
 
-        for (int i = 0; i < len; i++) {
-            indexTempBucket[i] = otherNodes[i].commitIndex;
+                int replaceIndex = priorityBucket[i].commitPriorityIndex;
+                node.commitPriorityIndex = replaceIndex;
+
+                for (int j = node.commitPriorityIndex; j > replaceIndex; j--) {
+                    priorityBucket[j] = priorityBucket[j - 1];
+                    priorityBucket[j].commitPriorityIndex = j;
+                }
+
+                break;
+            }
         }
 
-        Arrays.sort(indexTempBucket);
-
-        long newEnableCommitIndex = indexTempBucket[len - majority + 1];
+        long newEnableCommitIndex = priorityBucket[majority - 2].commitIndex;
 
         if (newEnableCommitIndex > commitEntryIndex) {
-            for (long index = commitEntryIndex + 1; index <= newEnableCommitIndex; index++) {
+            for (long i = commitEntryIndex + 1; i <= newEnableCommitIndex; i++) {
 
                 PendingEntry pendingEntry;
 
-                if ((pendingEntry = pendingEntryMap.get(index)) != null) {
-                    applyEntryData0(index, pendingEntry.data.retain(), pendingEntry.future);
+                if ((pendingEntry = pendingEntryMap.get(i)) != null) {
+                    applyEntryData0(i, pendingEntry.data.retain(), pendingEntry.future);
                 } else {
-                    applyEntryData0(index, readEntry(index), null);
+                    applyEntryData0(i, readEntry(i), null);
                 }
 
-                changeCommitEntryIndex(index);
+                changeCommitEntryIndex(i);
             }
         }
     }
@@ -846,6 +859,8 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
         for (int i = 0; i < nodeSize; i++) {
             if (i != index) {
+                int nodeIndex = i < index ? i : i - 1;
+
                 String[] addressTuple = addresses[i].split(":");
                 String host = addressTuple[0].trim();
                 int port = Integer.parseInt(addressTuple[1]);
@@ -853,11 +868,9 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
                 InetSocketAddress address = new InetSocketAddress(host, port);
                 ClusterNode node = new ClusterNode(address);
 
-                if (i < index) {
-                    otherNodes[i] = node;
-                } else {
-                    otherNodes[i - 1] = node;
-                }
+                node.commitPriorityIndex = nodeIndex;
+
+                otherNodes[nodeIndex] = node;
             }
         }
 
@@ -872,6 +885,7 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     private class ClusterNode {
 
         private final InetSocketAddress address;
+        private volatile int commitPriorityIndex;
         private volatile long commitIndex;
         private volatile long leftIndex;
         private volatile long rightIndex;
