@@ -66,10 +66,16 @@ public final class UDPMessageHandler extends ChannelInboundHandlerAdapter {
                     byteBuf.release();
                     break;
 
+                case HIGHER_TERM_NOTIFY:
+                    stateMachine.recvHigherTermNotify(
+                            byteBuf.readLong()
+                    );
+                    break;
+
                 case LEADER_MESSAGE:
                     int leaderIndex = byteBuf.readInt();
                     long leaderTerm = byteBuf.readLong();
-                    long commitEntryIndex = byteBuf.readLong();
+                    long enableCommitIndex = byteBuf.readLong();
                     long entryIndex = 0L;
                     long entryTerm = 0L;
 
@@ -81,7 +87,7 @@ public final class UDPMessageHandler extends ChannelInboundHandlerAdapter {
                     stateMachine.recvMessageFromLeader(
                             leaderIndex,
                             leaderTerm,
-                            commitEntryIndex,
+                            enableCommitIndex,
                             entryIndex,
                             entryTerm,
                             byteBuf
@@ -101,6 +107,7 @@ public final class UDPMessageHandler extends ChannelInboundHandlerAdapter {
         } else {
             byteBuf.release();
         }
+
     }
 
 }

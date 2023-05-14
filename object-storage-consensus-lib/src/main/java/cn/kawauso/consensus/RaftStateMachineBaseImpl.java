@@ -14,9 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileChannel.MapMode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -33,6 +31,7 @@ public abstract class RaftStateMachineBaseImpl extends RaftStateMachineImpl {
     private final ByteBufAllocator allocator;
     private final WriteOptions writeOptions;
     private final UDPService udpService;
+    private final ByteBuffer readBuffer;
     private final DB kvStore;
 
     public RaftStateMachineBaseImpl(UDPService udpService,
@@ -49,6 +48,7 @@ public abstract class RaftStateMachineBaseImpl extends RaftStateMachineImpl {
         this.kvStore = initKVStore();
         this.entryDataFileChannel = initEntryDataFileChannel();
 
+        this.readBuffer = ByteBuffer.allocate(MAX_ENTRY_SIZE);
         this.writeOptions = new WriteOptions().sync(false);
         this.allocator = ByteBufAllocator.DEFAULT;
         this.udpService = udpService;
@@ -209,11 +209,12 @@ public abstract class RaftStateMachineBaseImpl extends RaftStateMachineImpl {
         long length = readLong(entryIndex + "len");
         long term = readLong(entryIndex + "term");
 
+        ByteBuffer readBuffer = this.readBuffer.position(0);
         ByteBuf byteBuf = allocator.buffer();
 
         try {
-            MappedByteBuffer entryData = entryDataFileChannel.map(MapMode.READ_ONLY, position, length);
-            byteBuf.writeBytes(entryData);
+            entryDataFileChannel.position(position).read(readBuffer, length);
+            byteBuf.writeBytes(readBuffer);
         } catch (IOException e) {
             e.printStackTrace();
         }

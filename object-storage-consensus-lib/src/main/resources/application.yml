@@ -1,5 +1,5 @@
 main:
-  exec-threads: 2
+  exec-threads: 4
 
 network:
   udp:

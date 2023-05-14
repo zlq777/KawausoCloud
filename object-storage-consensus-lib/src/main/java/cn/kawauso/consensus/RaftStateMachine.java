@@ -26,6 +26,11 @@ public interface RaftStateMachine {
     void close() throws Exception;
 
     /**
+     * 打印出状态机的内部信息，用于debug
+     */
+    void debug();
+
+    /**
      * @return 状态机是否正在运行
      */
     boolean isRunning();
@@ -58,17 +63,24 @@ public interface RaftStateMachine {
                           boolean inPrevote, long prevoteRound);
 
     /**
+     * 接收并处理来自于其它节点的更高任期通知
+     *
+     * @param higherTerm 更高的任期
+     */
+    void recvHigherTermNotify(long higherTerm);
+
+    /**
      * 接收并处理来自于leader节点的消息
      *
      * @param leaderIndex leader节点的序列号
      * @param leaderTerm leader节点的任期
-     * @param enableCommitEntryIndex 允许当前节点提交并应用的Entry序列号
+     * @param enableCommitIndex 允许当前节点提交并应用的Entry序列号
      * @param entryIndex 新同步的Entry序列号
      * @param entryTerm 新同步的Entry任期
      * @param entryData 新同步的Entry数据
      */
     void recvMessageFromLeader(int leaderIndex, long leaderTerm,
-                               long enableCommitEntryIndex,
+                               long enableCommitIndex,
                                long entryIndex, long entryTerm,
                                ByteBuf entryData);
 

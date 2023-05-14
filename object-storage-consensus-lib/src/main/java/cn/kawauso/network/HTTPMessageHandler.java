@@ -31,20 +31,28 @@ public final class HTTPMessageHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelRead(@NotNull ChannelHandlerContext ctx, @NotNull Object msg) {
         FullHttpRequest request = (FullHttpRequest) msg;
-        request.release();
 
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
         response.headers().set(CONTENT_LENGTH, 0);
 
         ctx.writeAndFlush(response);
 
-        ByteBuf byteBuf = ByteBufAllocator.DEFAULT.buffer();
-        for (int i = 0; i < 32768; i++) {
-            byteBuf.writeByte(0);
+        switch (request.uri()) {
+            case "/":
+                ByteBuf byteBuf = ByteBufAllocator.DEFAULT.buffer();
+                for (int i = 0; i < 32768; i++) {
+                    byteBuf.writeByte(0);
+                }
+
+                log.info("开始写！");
+                write(byteBuf);
+                break;
+            case "/debug":
+                stateMachine.debug();
+                break;
         }
 
-        log.info("开始写！");
-        write(byteBuf);
+        request.release();
     }
 
     @Override
