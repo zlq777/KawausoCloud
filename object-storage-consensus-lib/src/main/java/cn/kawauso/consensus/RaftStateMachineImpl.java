@@ -50,19 +50,19 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     private final int minElectTimeoutTicks;
     private final int maxElectTimeoutTicks;
 
-    private volatile boolean isRunning;
-    private volatile boolean inPrevote;
-    private volatile long currentTerm;
-    private volatile long prevoteRound;
-    private volatile long lastEntryIndex;
-    private volatile long lastEntryTerm;
-    private volatile long commitEntryIndex;
-    private volatile long syncedEntryIndex;
-    private volatile int successBallots;
-    private volatile int votedForIndex;
-    private volatile int resetWaitTicks;
-    private volatile int waitTicks;
-    private volatile RaftState state;
+    private boolean isRunning;
+    private boolean inPrevote;
+    private long currentTerm;
+    private long prevoteRound;
+    private long lastEntryIndex;
+    private long lastEntryTerm;
+    private long commitEntryIndex;
+    private long syncedEntryIndex;
+    private int successBallots;
+    private int votedForIndex;
+    private int resetWaitTicks;
+    private int waitTicks;
+    private RaftState state;
 
     public RaftStateMachineImpl(int index,
                                 int tickValue,
@@ -885,13 +885,13 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
     private class ClusterNode {
 
         private final InetSocketAddress address;
-        private volatile long syncedIndex;
-        private volatile long commitIndex;
-        private volatile long leftIndex;
-        private volatile long rightIndex;
-        private volatile int syncPriorityIndex;
-        private volatile int waitTicks;
-        private volatile Timeout taskHandle;
+        private long syncedIndex;
+        private long commitIndex;
+        private long leftIndex;
+        private long rightIndex;
+        private int syncPriorityIndex;
+        private int waitTicks;
+        private Timeout taskHandle;
 
         private ClusterNode(InetSocketAddress address) {
             this.address = address;
