@@ -298,7 +298,6 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
      */
     @Override
     public void recvHigherTermNotify(long higherTerm) {
-
         locker.lock();
 
         if (higherTerm > currentTerm) {
@@ -504,33 +503,33 @@ public abstract class RaftStateMachineImpl implements RaftStateMachine {
 
         locker.lock();
 
-        try {
+        boolean writable = (state == RaftState.LEADER);
 
-            if (state == RaftState.LEADER) {
+        if (writable) {
 
-                long newEntryIndex = lastEntryIndex + 1;
+            long newEntryIndex = lastEntryIndex + 1;
 
-                writeEntry(newEntryIndex, currentTerm, byteBuf);
+            writeEntry(newEntryIndex, currentTerm, byteBuf);
 
-                changeLastEntryIndex(newEntryIndex);
-                changeLastEntryTerm(currentTerm);
+            changeLastEntryIndex(newEntryIndex);
+            changeLastEntryTerm(currentTerm);
 
-                Entry entry = new Entry(currentTerm, byteBuf, future);
-                pendingEntryMap.put(newEntryIndex, entry);
+            Entry entry = new Entry(currentTerm, byteBuf, future);
+            pendingEntryMap.put(newEntryIndex, entry);
 
-                for (ClusterNode node : otherNodes) {
-                    if (node.leftIndex == node.rightIndex && node.rightIndex == newEntryIndex) {
-                        node.rightIndex ++;
-                        node.sendEntrySyncMessage(newEntryIndex, node.rightIndex);
-                    }
+            for (ClusterNode node : otherNodes) {
+                if (node.leftIndex == node.rightIndex && node.rightIndex == newEntryIndex) {
+                    node.rightIndex ++;
+                    node.sendEntrySyncMessage(newEntryIndex, node.rightIndex);
                 }
-
-            } else {
-                future.notifyCancel();
             }
 
-        } finally {
-            locker.unlock();
+        }
+
+        locker.unlock();
+
+        if (! writable) {
+            future.notifyCancel();
         }
 
         return (WriteFuture<T>) future;

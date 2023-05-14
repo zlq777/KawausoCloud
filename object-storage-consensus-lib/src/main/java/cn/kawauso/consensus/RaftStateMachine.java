@@ -107,9 +107,9 @@ public interface RaftStateMachine {
     /**
      * 将{@link ByteBuf}字节缓冲区中的数据写入整个集群，写入结果会通过异步方式进行通知
      *
-     * @param byteBuf {@link ByteBuf}字节缓冲区，并不会修改读指针的位置和引用计数
+     * @param byteBuf {@link ByteBuf}字节缓冲区，我们推荐采用{@link ByteBuf#retainedSlice()}的方式提交数据
      *
-     * @return 数据是否能够被写入
+     * @return {@link WriteFuture}
      */
     <T> WriteFuture<T> writeToCluster(ByteBuf byteBuf);
 
