@@ -1,0 +1,37 @@
+
+plugins {
+    id 'org.springframework.boot' version '2.6.3'
+    id 'io.spring.dependency-management' version '1.0.14.RELEASE'
+}
+
+group 'cn.kawauso'
+version '1.0'
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'cn.kawauso.InformationService'
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from {
+        (configurations.runtimeClasspath).collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+}
+
+dependencies {
+    implementation (
+            'io.netty:netty-codec:4.1+',
+            'io.netty:netty-buffer:4.1+',
+            'io.netty:netty-common:4.1+',
+            'io.netty:netty-resolver:4.1+',
+            'io.netty:netty-transport:4.1+',
+            'io.netty:netty-codec-http:4.1+',
+            'io.netty:netty-transport-native-epoll:4.1+',
+            'org.springframework.boot:spring-boot-starter',
+            'org.iq80.leveldb:leveldb:+',
+            'org.jetbrains.xodus:xodus-openAPI:+',
+            'org.jetbrains.xodus:xodus-entity-store:+',
+            project(":endpoint-service:consensus-lib")
+    )
+}

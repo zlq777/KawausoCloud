@@ -1,4 +1,7 @@
 /.idea/
 /.gradle/
-/information-manage-server/build/
-/object-storage-consensus-lib/build/
+/dns-service/build/
+/entrance-service/build/
+/endpoint-service/consensus-lib/build/
+/endpoint-service/information-service/build/
+/endpoint-service/storage-service/build/
