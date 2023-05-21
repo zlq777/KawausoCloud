@@ -21,14 +21,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * {@link RaftStateMachineBootstrap}是对象存储服务节点进程的启动入口
+ * {@link RaftStateMachineStarter}是{@link RaftStateMachine}的启动辅助类
  *
  * @author RealDragonking
  */
 @Service
-public class RaftStateMachineBootstrap {
+public class RaftStateMachineStarter {
 
-    private static final Logger log = LogManager.getLogger(RaftStateMachineBootstrap.class);
+    private static final Logger log = LogManager.getLogger(RaftStateMachineStarter.class);
 
     /**
      * 初始化全局可用的{@link EventExecutor}线程池
