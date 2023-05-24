@@ -1,0 +1,10 @@
+
+group 'cn.kawauso'
+version '1.0'
+
+dependencies {
+    implementation (
+            'io.netty:netty-common:4.1+',
+            'org.springframework.boot:spring-boot-starter:2.6.3',
+    )
+}

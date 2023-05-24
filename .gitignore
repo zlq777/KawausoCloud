@@ -2,6 +2,9 @@
 /.gradle/
 /dns-service/build/
 /entrance-service/build/
-/endpoint-service/consensus-lib/build/
-/endpoint-service/information-service/build/
-/endpoint-service/storage-service/build/
+/endpoint-service/util-lib/build/
+/endpoint-service/network-lib/build/
+/endpoint-service/raft-consensus-lib/build/
+/endpoint-service/transport-service/build/
+/endpoint-service/meta-data-storage-service/build/
+/endpoint-service/content-data-storage-service/build/

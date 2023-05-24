@@ -1,0 +1,18 @@
+
+group 'cn.kawauso'
+version '1.0'
+
+dependencies {
+    implementation (
+            'io.netty:netty-codec:4.1+',
+            'io.netty:netty-buffer:4.1+',
+            'io.netty:netty-common:4.1+',
+            'io.netty:netty-resolver:4.1+',
+            'io.netty:netty-transport:4.1+',
+            'io.netty:netty-codec-http:4.1+',
+            'io.netty:netty-transport-native-epoll:4.1+',
+            'io.netty:netty-transport-native-epoll:4.1+:linux-x86_64',
+            'io.netty:netty-transport-native-epoll:4.1+:linux-aarch_64',
+            project(":endpoint-service:util-lib")
+    )
+}
