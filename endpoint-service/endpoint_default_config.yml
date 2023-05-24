@@ -1,5 +1,6 @@
 main:
   exec-threads: 4
+  secret-key: dk20030110
 
 network:
   udp:

@@ -3,6 +3,9 @@ package cn.kawauso;
 import cn.kawauso.network.EpollTCPService;
 import cn.kawauso.network.GeneralTCPService;
 import cn.kawauso.network.TCPService;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.JWTVerifier;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.epoll.Epoll;
@@ -40,18 +43,23 @@ public class ServiceClusterApplication {
      * 配置并初始化{@link TCPService}
      *
      * @param execThreadGroup {@link EventExecutor}任务执行线程池
+     * @param secretKey 全局用户鉴权密钥
+     * @param ioThreads io线程数量
      * @param host 绑定的host地址
      * @param port 监听端口号
-     * @param ioThreads io线程数量
      * @return {@link TCPService}
      */
     @Bean(destroyMethod = "close")
     public TCPService initTCPService(EventExecutor execThreadGroup,
+                                     @Value("${main.secret-key}") String secretKey,
+                                     @Value("${network.tcp.io-threads}") int ioThreads,
                                      @Value("${network.tcp.host}") String host,
-                                     @Value("${network.tcp.port}") int port,
-                                     @Value("${network.tcp.io-threads}") int ioThreads) {
+                                     @Value("${network.tcp.port}") int port) {
 
         try {
+
+            Algorithm authAlgorithm = Algorithm.HMAC256(secretKey);
+            JWTVerifier tokenVerifier = JWT.require(authAlgorithm).build();
 
             ChannelInitializer<SocketChannel> initializer = new ChannelInitializer<>() {
                 @Override
@@ -64,9 +72,11 @@ public class ServiceClusterApplication {
                             Integer.MAX_VALUE
                     );
 
+                    HTTPRequestHandler requestHandler = new HTTPRequestHandler(tokenVerifier);
+
                     pipeline.addLast(serverCodec);
                     pipeline.addLast(new HttpObjectAggregator(Integer.MAX_VALUE));
-                    pipeline.addLast(execThreadGroup, new HTTPRequestHandler());
+                    pipeline.addLast(execThreadGroup, requestHandler);
                 }
             };
 
