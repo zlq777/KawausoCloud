@@ -19,18 +19,18 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
 /**
- * {@link MetaDataStorageService}作为对象存储体系的组成部分，负责存储对象元数据
+ * {@link StorageClusterApplication}作为对象存储体系的组成部分，负责存储对象元数据
  *
  * @author RealDragonking
  */
 @SpringBootApplication
-public class MetaDataStorageService {
+public class StorageClusterApplication {
 
-    private static final Logger log = LogManager.getLogger(MetaDataStorageService.class);
+    private static final Logger log = LogManager.getLogger(StorageClusterApplication.class);
 
     public static void main(String[] args) {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.DISABLED);
-        SpringApplication.run(MetaDataStorageService.class, args);
+        SpringApplication.run(StorageClusterApplication.class, args);
     }
 
     /**

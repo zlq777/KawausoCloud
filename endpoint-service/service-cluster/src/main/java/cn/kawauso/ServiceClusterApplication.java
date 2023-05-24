@@ -1,6 +1,5 @@
 package cn.kawauso;
 
-import cn.kawauso.consensus.RaftStateMachine;
 import cn.kawauso.network.EpollTCPService;
 import cn.kawauso.network.GeneralTCPService;
 import cn.kawauso.network.TCPService;
@@ -8,35 +7,38 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.codec.http.HttpObjectAggregator;
+import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.EventExecutor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
+import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_HEADER_SIZE;
+import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_INITIAL_LINE_LENGTH;
+
 /**
- * {@link ContentDataStorageService}作为对象存储体系的组成部分，负责存储对象主体数据
+ * {@link ServiceClusterApplication}负责对外提供数据读写、访问的服务
  *
  * @author RealDragonking
  */
 @SpringBootApplication
-public class ContentDataStorageService {
+public class ServiceClusterApplication {
 
-    private static final Logger log = LogManager.getLogger(ContentDataStorageService.class);
+    private static final Logger log = LogManager.getLogger(ServiceClusterApplication.class);
 
     public static void main(String[] args) {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.DISABLED);
-        SpringApplication.run(ContentDataStorageService.class, args);
+        SpringApplication.run(ServiceClusterApplication.class, args);
     }
 
     /**
      * 配置并初始化{@link TCPService}
      *
-     * @param stateMachine {@link RaftStateMachine}
      * @param execThreadGroup {@link EventExecutor}任务执行线程池
      * @param host 绑定的host地址
      * @param port 监听端口号
@@ -44,7 +46,7 @@ public class ContentDataStorageService {
      * @return {@link TCPService}
      */
     @Bean(destroyMethod = "close")
-    public TCPService initTCPService(RaftStateMachine stateMachine, EventExecutor execThreadGroup,
+    public TCPService initTCPService(EventExecutor execThreadGroup,
                                      @Value("${network.tcp.host}") String host,
                                      @Value("${network.tcp.port}") int port,
                                      @Value("${network.tcp.io-threads}") int ioThreads) {
@@ -53,9 +55,18 @@ public class ContentDataStorageService {
 
             ChannelInitializer<SocketChannel> initializer = new ChannelInitializer<>() {
                 @Override
-                protected void initChannel(@NotNull SocketChannel ch) {
+                protected void initChannel(SocketChannel ch) {
                     ChannelPipeline pipeline = ch.pipeline();
-                    // TODO
+
+                    HttpServerCodec serverCodec = new HttpServerCodec(
+                            DEFAULT_MAX_INITIAL_LINE_LENGTH,
+                            DEFAULT_MAX_HEADER_SIZE,
+                            Integer.MAX_VALUE
+                    );
+
+                    pipeline.addLast(serverCodec);
+                    pipeline.addLast(new HttpObjectAggregator(Integer.MAX_VALUE));
+                    pipeline.addLast(execThreadGroup, new HTTPRequestHandler());
                 }
             };
 

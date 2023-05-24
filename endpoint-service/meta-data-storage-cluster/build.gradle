@@ -9,7 +9,7 @@ version '1.0'
 
 jar {
     manifest {
-        attributes 'Main-Class': 'cn.kawauso.TransportService'
+        attributes 'Main-Class': 'cn.kawauso.StorageClusterApplication'
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from {
@@ -29,6 +29,9 @@ dependencies {
             'io.netty:netty-codec-http:4.1+',
             'io.netty:netty-transport-native-epoll:4.1+',
             'org.springframework.boot:spring-boot-starter',
+            'org.jetbrains.xodus:xodus-openAPI:+',
+            'org.jetbrains.xodus:xodus-entity-store:+',
+            project(":endpoint-service:raft-consensus-lib"),
             project(":endpoint-service:network-lib"),
             project(":endpoint-service:util-lib")
     )

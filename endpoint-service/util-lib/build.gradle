@@ -14,6 +14,6 @@ tasks.bootJar {
 dependencies {
     implementation (
             'io.netty:netty-common:4.1+',
-            'org.springframework.boot:spring-boot-starter',
+            'org.springframework.boot:spring-boot-starter'
     )
 }
