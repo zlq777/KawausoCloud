@@ -26,11 +26,6 @@ public interface RaftStateMachine {
     void close() throws Exception;
 
     /**
-     * 打印出状态机的内部信息，用于debug
-     */
-    void debug();
-
-    /**
      * @return 状态机是否正在运行
      */
     boolean isRunning();

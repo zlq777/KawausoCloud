@@ -176,22 +176,6 @@ public abstract class AbstractRaftStateMachine implements RaftStateMachine {
     }
 
     /**
-     * 打印出状态机的内部信息，用于debug
-     */
-    @Override
-    public void debug() {
-        log.info("term={}", currentTerm);
-        log.info("voted-for-index={}", votedForIndex);
-        log.info("last-entry-index={} last-entry-term={}", lastEntryIndex, lastEntryTerm);
-        log.info("commit-entry-index={}", commitEntryIndex);
-
-        for (ClusterNode node : syncPriorityBucket) {
-            log.info("addr={} synced-index={} commit-index={} left-index={} right-index={}",
-                    node.address, node.syncedIndex, node.commitIndex, node.leftIndex, node.rightIndex);
-        }
-    }
-
-    /**
      * @return 状态机是否已经完成启动
      */
     @Override
