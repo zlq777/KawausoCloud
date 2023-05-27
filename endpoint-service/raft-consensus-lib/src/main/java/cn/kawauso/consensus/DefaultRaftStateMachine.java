@@ -344,8 +344,6 @@ public final class DefaultRaftStateMachine extends AbstractRaftStateMachine {
         udpService.start();
 
         log.info("RaftStateMachine has started successfully !");
-        log.info("UDP-Service: core={} io-threads={} port={}",
-                udpService.getName(), udpService.getIOThreads(), udpService.getPort());
     }
 
     /**
