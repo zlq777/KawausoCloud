@@ -16,17 +16,18 @@ import java.util.concurrent.ThreadFactory;
  *
  * @author RealDragonking
  */
-public final class GeneralUDPService implements UDPService {
+public final class GeneralUDPService implements DuplexUDPService {
 
+    private final ChannelInitializer<DatagramChannel> initializer;
     private final EventLoopGroup ioThreadGroup;
     private final int port;
-    private ChannelInitializer<DatagramChannel> initializer;
     private Channel channel;
 
-    public GeneralUDPService(int port) {
+    public GeneralUDPService(int port, ChannelInitializer<DatagramChannel> initializer) {
         ThreadFactory ioThreadFactory = CommonUtils.getThreadFactory("UDP-io", true);
         this.ioThreadGroup = new NioEventLoopGroup(1, ioThreadFactory);
 
+        this.initializer = initializer;
         this.port = port;
     }
 
@@ -52,16 +53,6 @@ public final class GeneralUDPService implements UDPService {
     @Override
     public int getIOThreads() {
         return 1;
-    }
-
-    /**
-     * 设置{@link ChannelInitializer}
-     *
-     * @param initializer {@link ChannelInitializer}
-     */
-    @Override
-    public void setChannelInitializer(ChannelInitializer<DatagramChannel> initializer) {
-        this.initializer = initializer;
     }
 
     /**

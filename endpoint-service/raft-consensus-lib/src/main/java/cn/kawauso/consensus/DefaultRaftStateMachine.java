@@ -1,15 +1,26 @@
 package cn.kawauso.consensus;
 
-import cn.kawauso.network.UDPService;
+import cn.kawauso.network.DuplexUDPService;
+import cn.kawauso.network.EpollUDPService;
+import cn.kawauso.network.GeneralUDPService;
+import cn.kawauso.network.UDPMessageHandler;
 import cn.kawauso.util.WriteFuture;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.channel.ChannelInboundHandler;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.socket.DatagramChannel;
 import io.netty.channel.socket.DatagramPacket;
+import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.internal.SystemPropertyUtil;
 import org.iq80.leveldb.DB;
 import org.iq80.leveldb.Options;
 import org.iq80.leveldb.WriteOptions;
 import org.iq80.leveldb.impl.Iq80DBFactory;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,32 +31,55 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.concurrent.ExecutorService;
 
 /**
  * {@link DefaultRaftStateMachine}实现了{@link AbstractRaftStateMachine}所需的数据读写层相关基础设施方法
  *
  * @author RealDragonking
  */
+@Service
 public final class DefaultRaftStateMachine extends AbstractRaftStateMachine {
 
     private final FileChannel entryDataFileChannel;
     private final RaftEntryApplier entryApplier;
+    private final EventExecutor execThreadGroup;
+    private final DuplexUDPService udpService;
     private final ByteBufAllocator allocator;
     private final WriteOptions writeOptions;
-    private final UDPService udpService;
     private final ByteBuffer readBuffer;
     private final DB kvStore;
 
-    public DefaultRaftStateMachine(UDPService udpService, RaftEntryApplier entryApplier,
-                                   int index,
-                                   int tickValue,
-                                   int sendInterval,
-                                   int minElectTimeout,
-                                   int maxElectTimeout,
-                                   int sendWindowSize,
-                                   String[] allNodeAddresses) throws Exception {
+    /**
+     * 配置并初始化{@link DefaultRaftStateMachine}状态机内核
+     *
+     * @param execThreadGroup {@link ExecutorService}任务执行线程池
+     * @param entryApplier {@link RaftEntryApplier}数据应用角色
+     * @param port udp服务监听的端口
+     * @param ioThreads io线程数量
+     * @param tickValue 每个时间单元
+     * @param sendInterval 发送消息的时间间隔
+     * @param minElectTimeout 最小的选举超时时间
+     * @param maxElectTimeout 最大的选举超时时间
+     * @param sendWindowSize Entry同步数据发送的时间间隔
+     * @param index 当前节点在集群中的序列号
+     * @param allNodeAddresses 所有节点的地址列表
+     */
+    public DefaultRaftStateMachine(EventExecutor execThreadGroup, RaftEntryApplier entryApplier,
 
-        super(index, tickValue, sendInterval, minElectTimeout, maxElectTimeout, sendWindowSize, allNodeAddresses);
+                                    @Value("${network.udp.port}") int port,
+                                    @Value("${network.udp.io-threads}") int ioThreads,
+
+                                    @Value("${raft.timer.tick-value}") int tickValue,
+                                    @Value("${raft.timer.send-interval}") int sendInterval,
+                                    @Value("${raft.timer.min-elect-timeout}") int minElectTimeout,
+                                    @Value("${raft.timer.max-elect-timeout}") int maxElectTimeout,
+                                    @Value("${raft.send-window-size}") int sendWindowSize,
+
+                                    @Value("${raft.index}") int index,
+                                    @Value("${raft.all-node-address}") String allNodeAddresses) throws Exception {
+
+        super(index, tickValue, sendInterval, minElectTimeout, maxElectTimeout, sendWindowSize, allNodeAddresses.split(","));
 
         this.kvStore = initKVStore();
         this.entryDataFileChannel = initEntryDataFileChannel();
@@ -55,8 +89,20 @@ public final class DefaultRaftStateMachine extends AbstractRaftStateMachine {
         this.readBuffer = ByteBuffer.allocate(MAX_ENTRY_SIZE);
         this.allocator = ByteBufAllocator.DEFAULT;
 
+        ChannelInitializer<DatagramChannel> initializer = initChannelInitializer();
+        DuplexUDPService udpService;
+
+        if (Epoll.isAvailable()) {
+            udpService = new EpollUDPService(ioThreads, port, initializer);
+        } else {
+            udpService = new GeneralUDPService(port, initializer);
+        }
+
+        this.execThreadGroup = execThreadGroup;
         this.entryApplier = entryApplier;
         this.udpService = udpService;
+
+        this.start();
     }
 
     /**
@@ -92,6 +138,21 @@ public final class DefaultRaftStateMachine extends AbstractRaftStateMachine {
         };
 
         return FileChannel.open(path, options);
+    }
+
+    /**
+     * 创建用于{@link DuplexUDPService}初始化的{@link ChannelInitializer}
+     *
+     * @return {@link ChannelInitializer}
+     */
+    private ChannelInitializer<DatagramChannel> initChannelInitializer() {
+        ChannelInboundHandler handler = new UDPMessageHandler(this);
+        return new ChannelInitializer<>() {
+            @Override
+            protected void initChannel(@NotNull DatagramChannel ch) {
+                ch.pipeline().addLast(execThreadGroup, handler);
+            }
+        };
     }
 
     /**
@@ -269,6 +330,22 @@ public final class DefaultRaftStateMachine extends AbstractRaftStateMachine {
     @Override
     public void applyEntryData(long entryIndex, long entryTerm, ByteBuf entryData, WriteFuture<?> future) {
         entryApplier.applyEntryData(entryIndex, entryTerm, entryData, future);
+    }
+
+    /**
+     * 启动此{@link RaftStateMachine}的进程
+     *
+     * @throws Exception 启动过程中出现的异常
+     */
+    @Override
+    public void start() throws Exception {
+        super.start();
+
+        udpService.start();
+
+        log.info("RaftStateMachine has started successfully !");
+        log.info("UDP-Service: core={} io-threads={} port={}",
+                udpService.getName(), udpService.getIOThreads(), udpService.getPort());
     }
 
     /**

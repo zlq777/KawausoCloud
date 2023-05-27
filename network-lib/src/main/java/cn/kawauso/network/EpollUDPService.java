@@ -19,18 +19,19 @@ import java.util.concurrent.ThreadFactory;
  *
  * @author RealDragonking
  */
-public final class EpollUDPService implements UDPService {
+public final class EpollUDPService implements DuplexUDPService {
 
+    private final ChannelInitializer<DatagramChannel> initializer;
     private final EventLoopGroup ioThreadGroup;
     private final int port;
     private final int ioThreads;
-    private ChannelInitializer<DatagramChannel> initializer;
     private ChannelNode channelNode;
 
-    public EpollUDPService(int port, int ioThreads) {
+    public EpollUDPService(int port, int ioThreads, ChannelInitializer<DatagramChannel> initializer) {
         ThreadFactory ioThreadFactory = CommonUtils.getThreadFactory("UDP-io", true);
         this.ioThreadGroup = new EpollEventLoopGroup(ioThreads, ioThreadFactory);
 
+        this.initializer = initializer;
         this.ioThreads = ioThreads;
         this.port = port;
     }
@@ -57,16 +58,6 @@ public final class EpollUDPService implements UDPService {
     @Override
     public int getIOThreads() {
         return ioThreads;
-    }
-
-    /**
-     * 设置{@link ChannelInitializer}
-     *
-     * @param initializer {@link ChannelInitializer}
-     */
-    @Override
-    public void setChannelInitializer(ChannelInitializer<DatagramChannel> initializer) {
-        this.initializer = initializer;
     }
 
     /**

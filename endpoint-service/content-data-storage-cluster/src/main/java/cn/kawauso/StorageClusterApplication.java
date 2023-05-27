@@ -4,12 +4,14 @@ import cn.kawauso.consensus.RaftStateMachine;
 import cn.kawauso.network.EpollTCPService;
 import cn.kawauso.network.GeneralTCPService;
 import cn.kawauso.network.TCPService;
+import cn.kawauso.util.CommonUtils;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.concurrent.UnorderedThreadPoolEventExecutor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -17,6 +19,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+
+import java.util.concurrent.ThreadFactory;
 
 /**
  * {@link StorageClusterApplication}作为对象存储体系的组成部分，负责存储对象主体数据
@@ -31,6 +35,18 @@ public class StorageClusterApplication {
     public static void main(String[] args) {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.DISABLED);
         SpringApplication.run(StorageClusterApplication.class, args);
+    }
+
+    /**
+     * 初始化全局可用的{@link EventExecutor}任务执行线程池
+     *
+     * @param execThreads 任务执行线程数量
+     * @return {@link EventExecutor}
+     */
+    @Bean(destroyMethod = "shutdownGracefully")
+    public EventExecutor initExecThreadGroup(@Value("${main.exec-threads}") int execThreads) {
+        ThreadFactory execThreadFactory = CommonUtils.getThreadFactory("exec", true);
+        return new UnorderedThreadPoolEventExecutor(execThreads, execThreadFactory);
     }
 
     /**
