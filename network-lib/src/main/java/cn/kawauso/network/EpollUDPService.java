@@ -12,7 +12,7 @@ import io.netty.channel.socket.DatagramPacket;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * {@link EpollUDPService}是{@link UDPService}的linux平台特化级实现，仅能在linux内核3.9以上版本运行。
+ * {@link EpollUDPService}是{@link DuplexUDPService}的linux平台特化级实现，仅能在linux内核3.9以上版本运行。
  * {@link EpollUDPService}除了提供更为强大的性能，同时也支持使用多个IO线程来完成读写任务。为了均匀地将写任务分摊到
  * 每个{@link io.netty.channel.EventLoop}上，我们选择使用无锁化的环形链表来迭代遍历每个节点，每个节点都绑定了一个
  * {@link Channel}
@@ -37,7 +37,7 @@ public final class EpollUDPService implements DuplexUDPService {
     }
 
     /**
-     * @return UDP服务所使用的内核名称
+     * @return 服务所使用的内核名称
      */
     @Override
     public String getName() {
@@ -45,7 +45,15 @@ public final class EpollUDPService implements DuplexUDPService {
     }
 
     /**
-     * @return UDP服务监听的端口
+     * @return 服务绑定的ip地址
+     */
+    @Override
+    public String getHost() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @return 服务监听的端口
      */
     @Override
     public int getPort() {
@@ -53,7 +61,7 @@ public final class EpollUDPService implements DuplexUDPService {
     }
 
     /**
-     * @return UDP服务使用的IO线程数量
+     * @return 服务使用的IO线程数量
      */
     @Override
     public int getIOThreads() {
@@ -61,7 +69,7 @@ public final class EpollUDPService implements DuplexUDPService {
     }
 
     /**
-     * 尝试启动此{@link UDPService}服务
+     * 尝试启动此{@link NetworkService}服务
      *
      * @throws Exception 启动过程中出现的异常
      */
@@ -109,7 +117,7 @@ public final class EpollUDPService implements DuplexUDPService {
     }
 
     /**
-     * 关闭此{@link UDPService}的进程
+     * 关闭此{@link NetworkService}的进程
      */
     @Override
     public void close() {

@@ -2,7 +2,7 @@ package cn.kawauso;
 
 import cn.kawauso.network.EpollTCPService;
 import cn.kawauso.network.GeneralTCPService;
-import cn.kawauso.network.TCPService;
+import cn.kawauso.network.NetworkService;
 import cn.kawauso.util.CommonUtils;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
@@ -56,21 +56,21 @@ public class ServiceClusterApplication {
     }
 
     /**
-     * 配置并初始化{@link TCPService}
+     * 配置并初始化{@link NetworkService}
      *
      * @param execThreadGroup {@link EventExecutor}任务执行线程池
      * @param secretKey 全局用户鉴权密钥
      * @param ioThreads io线程数量
      * @param host 绑定的host地址
      * @param port 监听端口号
-     * @return {@link TCPService}
+     * @return {@link NetworkService}
      */
     @Bean(destroyMethod = "close")
-    public TCPService initTCPService(EventExecutor execThreadGroup,
-                                     @Value("${main.secret-key}") String secretKey,
-                                     @Value("${network.tcp.io-threads}") int ioThreads,
-                                     @Value("${network.tcp.host}") String host,
-                                     @Value("${network.tcp.port}") int port) {
+    public NetworkService initNetworkService(EventExecutor execThreadGroup,
+                                             @Value("${main.secret-key}") String secretKey,
+                                             @Value("${network.tcp.io-threads}") int ioThreads,
+                                             @Value("${network.tcp.host}") String host,
+                                             @Value("${network.tcp.port}") int port) {
 
         try {
 
@@ -96,22 +96,22 @@ public class ServiceClusterApplication {
                 }
             };
 
-            TCPService TCPService;
+            NetworkService networkService;
 
             if (Epoll.isAvailable()) {
-                TCPService = new EpollTCPService(host, port, ioThreads, initializer);
+                networkService = new EpollTCPService(host, port, ioThreads, initializer);
             } else {
-                TCPService = new GeneralTCPService(host, port, ioThreads, initializer);
+                networkService = new GeneralTCPService(host, port, ioThreads, initializer);
             }
 
-            TCPService.start();
+            networkService.start();
 
-            log.info("TCP-Service has started successfully !");
-            log.info("TCP-Service: core={} io-threads={} host={} port={}",
-                    TCPService.getName(), TCPService.getIOThreads(),
-                    TCPService.getHost(), TCPService.getPort());
+            log.info("Network-Service has started successfully !");
+            log.info("Network-Service: core={} io-threads={} host={} port={}",
+                    networkService.getName(), networkService.getIOThreads(),
+                    networkService.getHost(), networkService.getPort());
 
-            return TCPService;
+            return networkService;
         } catch (Exception e) {
             log.info("TCP-Service started fail, error message:{}", e.toString());
             System.exit(1);

@@ -11,11 +11,11 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * {@link GeneralTCPService}是{@link TCPService}的通用级实现，允许运行在所有操作系统上
+ * {@link GeneralTCPService}是{@link NetworkService}的TCP协议通用级实现，允许运行在所有操作系统上
  *
  * @author RealDragonking
  */
-public final class GeneralTCPService implements TCPService {
+public final class GeneralTCPService implements NetworkService {
 
     private final ChannelInitializer<SocketChannel> initializer;
     private final EventLoopGroup serverThreadGroup;
@@ -39,7 +39,7 @@ public final class GeneralTCPService implements TCPService {
     }
 
     /**
-     * @return TCP服务所使用的内核名称
+     * @return 服务所使用的内核名称
      */
     @Override
     public String getName() {
@@ -47,7 +47,7 @@ public final class GeneralTCPService implements TCPService {
     }
 
     /**
-     * @return TCP服务绑定的ip地址
+     * @return 服务绑定的ip地址
      */
     @Override
     public String getHost() {
@@ -55,7 +55,7 @@ public final class GeneralTCPService implements TCPService {
     }
 
     /**
-     * @return TCP服务监听的端口
+     * @return 服务监听的端口
      */
     @Override
     public int getPort() {
@@ -63,7 +63,7 @@ public final class GeneralTCPService implements TCPService {
     }
 
     /**
-     * @return TCP服务使用的IO线程数量
+     * @return 服务使用的IO线程数量
      */
     @Override
     public int getIOThreads() {
@@ -71,7 +71,7 @@ public final class GeneralTCPService implements TCPService {
     }
 
     /**
-     * 尝试启动此{@link TCPService}服务
+     * 尝试启动此{@link NetworkService}服务
      *
      * @throws Exception 启动过程中出现的异常
      */
@@ -87,7 +87,7 @@ public final class GeneralTCPService implements TCPService {
     }
 
     /**
-     * 关闭此{@link TCPService}的进程
+     * 关闭此{@link NetworkService}的进程
      */
     @Override
     public void close() {
