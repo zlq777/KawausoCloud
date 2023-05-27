@@ -29,6 +29,7 @@ dependencies {
             'io.netty:netty-codec-http:4.1+',
             'io.netty:netty-transport-native-epoll:4.1+',
             'org.springframework.boot:spring-boot-starter',
+            'com.alibaba.nacos:nacos-spring-context:+',
             'com.auth0:java-jwt:+',
             'com.alibaba.fastjson2:fastjson2:+',
             project(":network-lib"),

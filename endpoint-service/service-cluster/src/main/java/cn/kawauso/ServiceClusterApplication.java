@@ -4,6 +4,11 @@ import cn.kawauso.network.EpollTCPService;
 import cn.kawauso.network.GeneralTCPService;
 import cn.kawauso.network.NetworkService;
 import cn.kawauso.util.CommonUtils;
+import com.alibaba.nacos.api.annotation.NacosProperties;
+import com.alibaba.nacos.api.config.ConfigType;
+import com.alibaba.nacos.api.config.annotation.NacosValue;
+import com.alibaba.nacos.spring.context.annotation.config.EnableNacosConfig;
+import com.alibaba.nacos.spring.context.annotation.config.NacosPropertySource;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.JWTVerifier;
@@ -34,9 +39,15 @@ import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_INITIAL_
  * @author RealDragonking
  */
 @SpringBootApplication
+@EnableNacosConfig(globalProperties =
+    @NacosProperties(serverAddr = "121.199.44.151:8848", username = "nacos", password = "nacos"))
+@NacosPropertySource(dataId = "global_config_security", type = ConfigType.JSON)
 public class ServiceClusterApplication {
 
     private static final Logger log = LogManager.getLogger(ServiceClusterApplication.class);
+
+    @NacosValue("${secret-key}")
+    private String secretKey;
 
     public static void main(String[] args) {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.DISABLED);
@@ -50,7 +61,7 @@ public class ServiceClusterApplication {
      * @return {@link EventExecutor}
      */
     @Bean(destroyMethod = "shutdownGracefully")
-    public EventExecutor initExecThreadGroup(@Value("${main.exec-threads}") int execThreads) {
+    public EventExecutor initExecThreadGroup(@Value("${exec-threads}") int execThreads) {
         ThreadFactory execThreadFactory = CommonUtils.getThreadFactory("exec", true);
         return new UnorderedThreadPoolEventExecutor(execThreads, execThreadFactory);
     }
@@ -59,7 +70,6 @@ public class ServiceClusterApplication {
      * 配置并初始化{@link NetworkService}
      *
      * @param execThreadGroup {@link EventExecutor}任务执行线程池
-     * @param secretKey 全局用户鉴权密钥
      * @param ioThreads io线程数量
      * @param host 绑定的host地址
      * @param port 监听端口号
@@ -67,36 +77,35 @@ public class ServiceClusterApplication {
      */
     @Bean(destroyMethod = "close")
     public NetworkService initNetworkService(EventExecutor execThreadGroup,
-                                             @Value("${main.secret-key}") String secretKey,
                                              @Value("${network.tcp.io-threads}") int ioThreads,
                                              @Value("${network.tcp.host}") String host,
                                              @Value("${network.tcp.port}") int port) {
 
+        NetworkService networkService = null;
+
         try {
 
-            Algorithm authAlgorithm = Algorithm.HMAC256(secretKey);
-            JWTVerifier tokenVerifier = JWT.require(authAlgorithm).build();
+            JWTVerifier tokenVerifier = JWT.require(Algorithm.HMAC256(secretKey)).build();
 
             ChannelInitializer<SocketChannel> initializer = new ChannelInitializer<>() {
                 @Override
                 protected void initChannel(SocketChannel ch) {
+
                     ChannelPipeline pipeline = ch.pipeline();
 
+                    HTTPRequestHandler requestHandler = new HTTPRequestHandler(tokenVerifier);
+                    HttpObjectAggregator aggregator = new HttpObjectAggregator(Integer.MAX_VALUE);
                     HttpServerCodec serverCodec = new HttpServerCodec(
                             DEFAULT_MAX_INITIAL_LINE_LENGTH,
                             DEFAULT_MAX_HEADER_SIZE,
                             Integer.MAX_VALUE
                     );
 
-                    HTTPRequestHandler requestHandler = new HTTPRequestHandler(tokenVerifier);
-
                     pipeline.addLast(serverCodec);
-                    pipeline.addLast(new HttpObjectAggregator(Integer.MAX_VALUE));
+                    pipeline.addLast(aggregator);
                     pipeline.addLast(execThreadGroup, requestHandler);
                 }
             };
-
-            NetworkService networkService;
 
             if (Epoll.isAvailable()) {
                 networkService = new EpollTCPService(host, port, ioThreads, initializer);
@@ -107,17 +116,16 @@ public class ServiceClusterApplication {
             networkService.start();
 
             log.info("Network-Service has started successfully !");
-            log.info("Network-Service: core={} io-threads={} host={} port={}",
+            log.info("Network-Service : core={} io-threads={} host={} port={}",
                     networkService.getName(), networkService.getIOThreads(),
                     networkService.getHost(), networkService.getPort());
 
-            return networkService;
         } catch (Exception e) {
-            log.info("TCP-Service started fail, error message:{}", e.toString());
+            log.info("Network-Service started fail, error message:{}", e.toString());
             System.exit(1);
         }
 
-        return null;
+        return networkService;
     }
 
 }

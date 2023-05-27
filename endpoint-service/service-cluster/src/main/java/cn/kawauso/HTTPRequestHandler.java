@@ -115,8 +115,8 @@ public final class HTTPRequestHandler extends ChannelInboundHandlerAdapter {
      * @param publicWrite 是否允许公开写
      * @param response {@link FullHttpResponse}响应
      */
-    private void createBucket(String userId,
-                              String bucketName, boolean publicRead, boolean publicWrite,
+    private void createBucket(String userId, String bucketName,
+                              boolean publicRead, boolean publicWrite,
                               FullHttpResponse response) {
         //
     }

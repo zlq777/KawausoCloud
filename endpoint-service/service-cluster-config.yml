@@ -1,0 +1,12 @@
+
+exec-threads: 4
+
+network:
+  tcp:
+    host: 127.0.0.1
+    port: 4000
+    io-threads: 2
+
+logging:
+  file:
+    name: history.log

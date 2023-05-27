@@ -65,6 +65,8 @@ public class StorageClusterApplication {
                                              @Value("${network.tcp.port}") int port,
                                              @Value("${network.tcp.io-threads}") int ioThreads) {
 
+        NetworkService networkService = null;
+
         try {
 
             ChannelInitializer<SocketChannel> initializer = new ChannelInitializer<>() {
@@ -75,8 +77,6 @@ public class StorageClusterApplication {
                 }
             };
 
-            NetworkService networkService;
-
             if (Epoll.isAvailable()) {
                 networkService = new EpollTCPService(host, port, ioThreads, initializer);
             } else {
@@ -86,17 +86,16 @@ public class StorageClusterApplication {
             networkService.start();
 
             log.info("Network-Service has started successfully !");
-            log.info("Network-Service: core={} io-threads={} host={} port={}",
+            log.info("Network-Service : core={} io-threads={} host={} port={}",
                     networkService.getName(), networkService.getIOThreads(),
                     networkService.getHost(), networkService.getPort());
 
-            return networkService;
         } catch (Exception e) {
             log.info("Network-Service started fail, error message:{}", e.toString());
             System.exit(1);
         }
 
-        return null;
+        return networkService;
     }
 
 }
