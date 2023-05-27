@@ -1,0 +1,5 @@
+
+group 'cn.kawauso'
+version '1.0'
+
+dependencies {}

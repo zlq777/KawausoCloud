@@ -1,9 +1,12 @@
 /.idea/
 /.gradle/
+
 /dns-service/build/
-/entrance-service/build/
-/endpoint-service/util-lib/build/
-/endpoint-service/network-lib/build/
+/user-service/build/
+
+/util-lib/build/
+/network-lib/build/
+
 /endpoint-service/raft-consensus-lib/build/
 /endpoint-service/service-cluster/build/
 /endpoint-service/meta-data-storage-cluster/build/

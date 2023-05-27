@@ -13,6 +13,6 @@ dependencies {
             'io.netty:netty-transport-native-epoll:4.1+',
             'io.netty:netty-transport-native-epoll:4.1+:linux-x86_64',
             'io.netty:netty-transport-native-epoll:4.1+:linux-aarch_64',
-            project(":endpoint-service:util-lib")
+            project(":util-lib")
     )
 }

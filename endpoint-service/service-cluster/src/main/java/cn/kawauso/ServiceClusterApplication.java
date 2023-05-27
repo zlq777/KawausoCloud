@@ -3,6 +3,7 @@ package cn.kawauso;
 import cn.kawauso.network.EpollTCPService;
 import cn.kawauso.network.GeneralTCPService;
 import cn.kawauso.network.TCPService;
+import cn.kawauso.util.CommonUtils;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.JWTVerifier;
@@ -14,12 +15,15 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.concurrent.UnorderedThreadPoolEventExecutor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+
+import java.util.concurrent.ThreadFactory;
 
 import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_HEADER_SIZE;
 import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_INITIAL_LINE_LENGTH;
@@ -37,6 +41,18 @@ public class ServiceClusterApplication {
     public static void main(String[] args) {
         ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.DISABLED);
         SpringApplication.run(ServiceClusterApplication.class, args);
+    }
+
+    /**
+     * 初始化全局可用的{@link EventExecutor}任务执行线程池
+     *
+     * @param execThreads 任务执行线程数量
+     * @return {@link EventExecutor}
+     */
+    @Bean(destroyMethod = "shutdownGracefully")
+    public EventExecutor initExecThreadGroup(@Value("${main.exec-threads}") int execThreads) {
+        ThreadFactory execThreadFactory = CommonUtils.getThreadFactory("exec", true);
+        return new UnorderedThreadPoolEventExecutor(execThreads, execThreadFactory);
     }
 
     /**

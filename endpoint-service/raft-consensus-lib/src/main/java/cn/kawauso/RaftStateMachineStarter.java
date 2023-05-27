@@ -4,10 +4,12 @@ import cn.kawauso.consensus.RaftEntryApplier;
 import cn.kawauso.consensus.RaftStateMachine;
 import cn.kawauso.consensus.DefaultRaftStateMachine;
 import cn.kawauso.network.*;
+import cn.kawauso.util.CommonUtils;
 import io.netty.channel.*;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.socket.DatagramChannel;
 import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.concurrent.UnorderedThreadPoolEventExecutor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -16,6 +18,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 
 /**
  * {@link RaftStateMachineStarter}是{@link RaftStateMachine}的启动辅助类
@@ -26,6 +29,18 @@ import java.util.concurrent.ExecutorService;
 public class RaftStateMachineStarter {
 
     private static final Logger log = LogManager.getLogger(RaftStateMachineStarter.class);
+
+    /**
+     * 初始化全局可用的{@link EventExecutor}任务执行线程池
+     *
+     * @param execThreads 任务执行线程数量
+     * @return {@link EventExecutor}
+     */
+    @Bean(destroyMethod = "shutdownGracefully")
+    public EventExecutor initExecThreadGroup(@Value("${main.exec-threads}") int execThreads) {
+        ThreadFactory execThreadFactory = CommonUtils.getThreadFactory("exec", true);
+        return new UnorderedThreadPoolEventExecutor(execThreads, execThreadFactory);
+    }
 
     /**
      * 初始化{@link UDPService}

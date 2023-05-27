@@ -33,7 +33,7 @@ dependencies {
             'org.jetbrains.xodus:xodus-openAPI:+',
             'org.jetbrains.xodus:xodus-entity-store:+',
             project(":endpoint-service:raft-consensus-lib"),
-            project(":endpoint-service:network-lib"),
-            project(":endpoint-service:util-lib")
+            project(":network-lib"),
+            project(":util-lib")
     )
 }
