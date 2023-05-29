@@ -41,7 +41,7 @@ import static io.netty.handler.codec.http.HttpObjectDecoder.DEFAULT_MAX_INITIAL_
 @SpringBootApplication
 @EnableNacosConfig(globalProperties =
     @NacosProperties(serverAddr = "121.199.44.151:8848", username = "nacos", password = "nacos"))
-@NacosPropertySource(dataId = "global_config_security", type = ConfigType.JSON)
+@NacosPropertySource(dataId = "global_config", type = ConfigType.JSON)
 public class ServiceClusterApplication {
 
     private static final Logger log = LogManager.getLogger(ServiceClusterApplication.class);

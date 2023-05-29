@@ -32,7 +32,7 @@ dependencies {
             'com.alibaba.nacos:nacos-spring-context:+',
             'com.auth0:java-jwt:+',
             'com.alibaba.fastjson2:fastjson2:+',
-            project(":network-lib"),
-            project(":util-lib")
+            project(":lib:network-lib"),
+            project(":lib:util-lib")
     )
 }

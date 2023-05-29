@@ -1,10 +1,10 @@
 rootProject.name = 'KawausoCloud'
 include 'user-service'
 
-include ':util-lib'
-include ':network-lib'
+include 'lib:util-lib'
+include 'lib:network-lib'
+include 'lib:raft-consensus-lib'
 
-include 'endpoint-service:raft-consensus-lib'
 include 'endpoint-service:service-cluster'
 include 'endpoint-service:meta-data-storage-cluster'
 include 'endpoint-service:content-data-storage-cluster'

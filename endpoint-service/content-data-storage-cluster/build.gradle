@@ -32,8 +32,8 @@ dependencies {
             'org.iq80.leveldb:leveldb:+',
             'org.jetbrains.xodus:xodus-openAPI:+',
             'org.jetbrains.xodus:xodus-entity-store:+',
-            project(":endpoint-service:raft-consensus-lib"),
-            project(":network-lib"),
-            project(":util-lib")
+            project(":lib:raft-consensus-lib"),
+            project(":lib:network-lib"),
+            project(":lib:util-lib")
     )
 }
