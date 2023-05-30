@@ -1,0 +1,14 @@
+nacos:
+  config:
+    server-addr: 121.199.44.151:8848
+    namespace:
+spring:
+  cloud:
+    nacos:
+      config:
+        server-addr: 121.199.44.151:8848 
+        username: nacos
+        password: nacos
+netty:
+  port: 9999
+
